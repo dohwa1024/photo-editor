@@ -1,0 +1,2960 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>간단 포토샵</title>
+<style>
+  :root{
+    --bg:#15171c;
+    --panel:#1c1f26;
+    --panel2:#23272f;
+    --line:#2e333d;
+    --text:#e6e9ef;
+    --muted:#9aa3b2;
+    --accent:#4f8cff;
+    --accent-dim:#2b3550;
+  }
+  *{box-sizing:border-box}
+  @font-face{font-family:'Jua';src:url('fonts/Jua-Regular.ttf') format('truetype');font-display:block}
+  @font-face{font-family:'Nanum Pen Script';src:url('fonts/NanumPenScript-Regular.ttf') format('truetype');font-display:block}
+  @font-face{font-family:'Gaegu';src:url('fonts/Gaegu-Regular.ttf') format('truetype');font-weight:400;font-display:block}
+  @font-face{font-family:'Gaegu';src:url('fonts/Gaegu-Bold.ttf') format('truetype');font-weight:700;font-display:block}
+  @font-face{font-family:'Black Han Sans';src:url('fonts/BlackHanSans-Regular.ttf') format('truetype');font-display:block}
+  @font-face{font-family:'Do Hyeon';src:url('fonts/DoHyeon-Regular.ttf') format('truetype');font-display:block}
+  @font-face{font-family:'Gugi';src:url('fonts/Gugi-Regular.ttf') format('truetype');font-display:block}
+  @font-face{font-family:'Cute Font';src:url('fonts/CuteFont-Regular.ttf') format('truetype');font-display:block}
+  html,body{height:100%;margin:0}
+  body{
+    display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+    font:13px/1.45 system-ui,-apple-system,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    overflow:hidden;user-select:none;
+  }
+  button{font:inherit;color:inherit}
+
+  header{
+    flex:0 0 auto;height:48px;display:flex;align-items:center;gap:6px;
+    padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);
+  }
+  .brand{font-weight:700;font-size:14px;margin-right:8px;letter-spacing:-.01em;white-space:nowrap}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:0 0 auto}
+  .spacer{flex:1}
+  .info{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:4px}
+
+  .btn{
+    height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel2);cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s;
+  }
+  .btn:hover:not(:disabled){background:#2b313b;border-color:#3a4250}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.35;cursor:default}
+  .btn.icon{width:32px;padding:0;display:grid;place-items:center}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover:not(:disabled){background:#3f7ef0;border-color:#3f7ef0}
+  .btn.full{width:100%}
+  .btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .zoom{min-width:46px;text-align:center;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+
+  #main{flex:1;display:flex;min-height:0}
+
+  #tools{
+    flex:0 0 auto;width:60px;display:flex;flex-direction:column;align-items:center;
+    gap:6px;padding:8px 0;background:var(--panel);border-right:1px solid var(--line);
+  }
+  .tool{
+    width:44px;height:44px;border-radius:10px;display:grid;place-items:center;
+    background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer;transition:.12s;
+  }
+  .tool:hover{background:var(--panel2);color:var(--text)}
+  .tool.active{background:var(--accent-dim);border-color:#3f5a9e;color:#cfe0ff}
+  .tool svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tool .t{font-size:18px;font-weight:700;line-height:1}
+
+  #stage{
+    position:relative;flex:1;min-width:0;background:#0f1115;overflow:hidden;
+  }
+  #stage.dragover{box-shadow:inset 0 0 0 2px var(--accent)}
+  #view{position:absolute;inset:0;display:block;touch-action:none}
+  #hint{
+    position:absolute;left:12px;bottom:10px;font-size:11px;color:#6f7b8e;
+    pointer-events:none;white-space:nowrap;
+  }
+  #bubbleEditor{
+    position:absolute;z-index:5;width:260px;display:flex;flex-direction:column;gap:6px;
+    padding:8px;background:rgba(28,31,38,.97);border:1px solid #3a4250;border-radius:10px;
+    box-shadow:0 10px 28px rgba(0,0,0,.5);
+  }
+  #bubbleEditor.hidden{display:none}
+  #bubbleEditor textarea{min-height:46px;line-height:1.4;resize:none}
+  .be-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted)}
+  .be-actions button{height:24px;padding:0 8px;font-size:11px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+  .be-actions button:hover{background:#2b313b}
+
+  #empty{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;padding:24px;text-align:center;color:var(--muted);
+    background:radial-gradient(circle at 50% 45%,#191d24 0%,#0f1115 70%);
+  }
+  #empty.hidden{display:none}
+  .empty-title{font-size:15px;color:#cfd6e2;font-weight:600}
+  .empty-sub{font-size:12px;margin-bottom:6px}
+
+  #panel{
+    flex:0 0 auto;width:272px;background:var(--panel);border-left:1px solid var(--line);
+    overflow-y:auto;padding:12px;scrollbar-width:thin;
+  }
+  .sec{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .sec:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+  .sec h3{
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin:0 0 10px;
+  }
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .row label{flex:0 0 62px;color:var(--muted);font-size:12px}
+  .row .muted{color:var(--muted)}
+  .val{width:42px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:11px;flex:0 0 auto}
+  .val.wide{width:auto;flex:1;text-align:right}
+  .hintline{font-size:11px;color:var(--muted);line-height:1.4;margin:4px 0 8px;word-break:keep-all}
+
+  input[type=range]{
+    flex:1;min-width:0;accent-color:var(--accent);height:18px;background:transparent;
+  }
+  input[type=text],input[type=number],select,textarea{
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:7px;padding:6px 8px;font:inherit;font-size:12px;width:100%;min-width:0;
+  }
+  input[type=number].num{width:72px;flex:0 0 auto;text-align:right}
+  select{cursor:pointer}
+  textarea{resize:vertical;min-height:56px;line-height:1.5}
+  input[type=text],input[type=number],textarea{user-select:text}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#4a6da8}
+  input[type=color]{
+    width:36px;height:28px;padding:0;border:1px solid var(--line);border-radius:7px;
+    background:var(--panel2);cursor:pointer;flex:0 0 auto;
+  }
+  input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px}
+  .check{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;flex:0 0 auto;white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);
+    font-size:12px;cursor:pointer;transition:.12s;
+  }
+  .chip:hover{background:#2b313b;border-color:#3a4250}
+  .chips .btn{flex:1}
+  .btns{display:flex;gap:8px}
+  .btns .btn{flex:1;padding:0 8px}
+  .nudge{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+  .nudge-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .nudge-title{font-size:11px;color:var(--muted);margin-bottom:6px;text-align:center}
+  .mini-btn{
+    width:100%;height:28px;margin-top:6px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);cursor:pointer;font-size:11px;
+  }
+  .mini-btn:hover:not(:disabled){background:#2b313b}
+  .mini-btn:disabled{opacity:.3;cursor:default}
+  .symbols{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
+  .sym{
+    height:26px;min-width:24px;padding:0 4px;border-radius:6px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);cursor:pointer;font-size:12px;line-height:1;
+  }
+  .sym:hover{background:#2b313b}
+  .layers{display:flex;flex-direction:column;gap:4px}
+  .layer{
+    display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--line);
+    border-radius:7px;background:var(--panel2);cursor:pointer;font-size:11px;
+  }
+  .layer:hover{background:#2b313b}
+  .layer.sel{border-color:#4a6da8;background:#243048}
+  .layer.base{color:var(--muted);cursor:default}
+  .layer.base:hover{background:var(--panel2)}
+  .layer .lname{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .layer input[type=checkbox]{width:13px;height:13px;accent-color:var(--accent);flex:0 0 auto}
+  .layer button{
+    width:22px;height:22px;padding:0;border-radius:5px;border:1px solid var(--line);
+    background:#20242b;color:var(--muted);cursor:pointer;font-size:10px;line-height:1;flex:0 0 auto;
+  }
+  .layer button:hover{background:#2b313b;color:var(--text)}
+  .nudge button{
+    height:34px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);
+    cursor:pointer;font-size:15px;line-height:1;transition:.12s;
+  }
+  .nudge button:hover:not(:disabled){background:#2b313b;border-color:#3a4250}
+  .nudge button:active:not(:disabled){transform:translateY(1px)}
+  .nudge button:disabled{opacity:.3;cursor:default}
+
+  .opt{display:none}
+  body[data-tool="crop"] .opt-crop,
+  body[data-tool="brush"] .opt-paint,
+  body[data-tool="eraser"] .opt-paint,
+  body[data-tool="text"] .opt-text{display:block}
+  body[data-tool="bubble"] .opt-bubble{display:block}
+</style>
+</head>
+<body data-tool="move">
+
+<header>
+  <div class="brand">간단 포토샵</div>
+  <button id="openBtn" class="btn">이미지 열기</button>
+  <span class="sep"></span>
+  <button id="undoBtn" class="btn icon" title="실행취소 (Ctrl+Z)" disabled>
+    <svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg>
+  </button>
+  <button id="redoBtn" class="btn icon" title="다시 실행 (Ctrl+Shift+Z)" disabled>
+    <svg viewBox="0 0 24 24"><path d="M15 14l4-4-4-4"/><path d="M19 10h-9a5 5 0 0 0 0 10h3"/></svg>
+  </button>
+  <span class="sep"></span>
+  <button id="zoomOutBtn" class="btn icon" title="축소 (-)">&minus;</button>
+  <span id="zoomLabel" class="zoom">100%</span>
+  <button id="zoomInBtn" class="btn icon" title="확대 (+)">+</button>
+  <button id="fitBtn" class="btn" title="화면에 맞추기 (0)">맞춤</button>
+  <span class="spacer"></span>
+  <span id="info" class="info"></span>
+  <button id="saveBtn" class="btn primary" title="파일로 저장 (Ctrl+S)">저장</button>
+</header>
+
+<div id="main">
+  <nav id="tools">
+    <button class="tool active" data-tool="move" title="이동: 글·말풍선 옮기기 / 빈 곳 드래그로 화면 이동 (V)">
+      <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><path d="M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>
+    </button>
+    <button class="tool" data-tool="crop" title="자르기 (C)">
+      <svg viewBox="0 0 24 24"><path d="M6 3v13a2 2 0 0 0 2 2h13"/><path d="M3 6h13a2 2 0 0 1 2 2v13"/></svg>
+    </button>
+    <button class="tool" data-tool="brush" title="브러시 (B)">
+      <svg viewBox="0 0 24 24"><path d="M14 3.5l6.5 6.5-9 9a4 4 0 0 1-2.8 1.2H4.5v-4.2a4 4 0 0 1 1.2-2.8l8.3-8.3z"/><path d="M13 5l6 6"/></svg>
+    </button>
+    <button class="tool" data-tool="eraser" title="지우개 (E)">
+      <svg viewBox="0 0 24 24"><path d="M8.5 20.5 3 15l9.5-9.5L18 11l-9.5 9.5z"/><path d="M13 6l5 5"/><path d="M4 20.5h16"/></svg>
+    </button>
+    <button class="tool" data-tool="text" title="텍스트 (T)">
+      <span class="t">T</span>
+    </button>
+    <button class="tool" data-tool="bubble" title="말풍선 (S)">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 12.5h5"/></svg>
+    </button>
+  </nav>
+
+  <section id="stage">
+    <canvas id="view"></canvas>
+    <div id="empty">
+      <div class="empty-title">이미지를 여기로 끌어다 놓으세요</div>
+      <div class="empty-sub">또는 파일 선택 · Ctrl+V 붙여넣기</div>
+      <button id="emptyOpen" class="btn primary">이미지 열기</button>
+    </div>
+    <div id="hint">휠: 확대·축소 · Space+드래그: 화면 이동 · Alt+1~8: ♥♡★☆♪…</div>
+    <div id="bubbleEditor" class="hidden">
+      <textarea id="bubbleText" rows="2" placeholder="대사를 입력하세요"></textarea>
+      <div class="symbols">
+        <button type="button" class="sym" data-target="bubble" data-sym="♥" title="하트 (Alt+1)">♥</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="♡" title="빈 하트 (Alt+2)">♡</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="★" title="별 (Alt+3)">★</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="☆" title="빈 별 (Alt+4)">☆</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="♪" title="음표 (Alt+5)">♪</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="…" title="말줄임 (Alt+6)">…</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="ㅋㅋ" title="웃음 (Alt+7)">ㅋㅋ</button>
+        <button type="button" class="sym" data-target="bubble" data-sym="ㅠㅠ" title="울음 (Alt+8)">ㅠㅠ</button>
+      </div>
+      <div class="be-actions">
+        <span>Ctrl+Enter: 말풍선 추가</span>
+        <button id="bubbleInlineClose" type="button">닫기</button>
+      </div>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <div class="sec">
+      <h3>위치 조정</h3>
+      <div class="nudge-cols">
+        <div class="nudge-col">
+          <div class="nudge-title">말풍선</div>
+          <div class="nudge">
+            <span></span><button class="nudge-btn" data-nudge-bubble="up" title="말풍선 위로 1px" disabled>&uarr;</button><span></span>
+            <button class="nudge-btn" data-nudge-bubble="left" title="말풍선 왼쪽 1px" disabled>&larr;</button>
+            <button class="nudge-btn" data-nudge-bubble="down" title="말풍선 아래로 1px" disabled>&darr;</button>
+            <button class="nudge-btn" data-nudge-bubble="right" title="말풍선 오른쪽 1px" disabled>&rarr;</button>
+          </div>
+          <button id="bubbleCenterBtn" class="mini-btn" disabled>가운데</button>
+        </div>
+        <div class="nudge-col">
+          <div class="nudge-title">대사</div>
+          <div class="nudge">
+            <span></span><button class="nudge-btn" data-nudge-text="up" title="대사 위로 1px" disabled>&uarr;</button><span></span>
+            <button class="nudge-btn" data-nudge-text="left" title="대사 왼쪽 1px" disabled>&larr;</button>
+            <button class="nudge-btn" data-nudge-text="down" title="대사 아래로 1px" disabled>&darr;</button>
+            <button class="nudge-btn" data-nudge-text="right" title="대사 오른쪽 1px" disabled>&rarr;</button>
+          </div>
+          <button id="textCenterBtn" class="mini-btn" disabled>가운데</button>
+        </div>
+      </div>
+      <div class="hintline" id="nudgeHint">말풍선과 대사를 각각 따로 옮길 수 있습니다. 가장자리 핸들로 크기도 조절됩니다.</div>
+      <button id="nudgeDelete" class="btn full" style="margin-top:8px" disabled>선택 삭제</button>
+    </div>
+
+    <div class="sec opt opt-crop">
+      <h3>자르기</h3>
+      <div class="row"><label>선택 영역</label><span id="cropReadout" class="val wide">0 × 0 px</span></div>
+      <div class="hintline">캔버스에서 남길 영역을 드래그하세요.</div>
+      <div class="btns">
+        <button id="cropApply" class="btn primary">자르기 적용</button>
+        <button id="cropReset" class="btn">전체 선택</button>
+      </div>
+    </div>
+
+    <div class="sec opt opt-paint">
+      <h3>브러시 / 지우개</h3>
+      <div class="row"><label>크기</label><input id="brushSize" type="range" min="1" max="200" value="24"><span class="val" id="brushSizeVal">24</span></div>
+      <div class="row"><label>불투명도</label><input id="brushOpacity" type="range" min="5" max="100" value="100"><span class="val" id="brushOpacityVal">100</span></div>
+      <div class="row"><label>색상</label><input id="brushColor" type="color" value="#ff5a5a"></div>
+    </div>
+
+    <div class="sec opt opt-text">
+      <h3>텍스트</h3>
+      <textarea id="textContent" rows="3" placeholder="넣을 글자를 입력하세요"></textarea>
+      <div class="symbols">
+        <button type="button" class="sym" data-target="text" data-sym="♥" title="하트 (Alt+1)">♥</button>
+        <button type="button" class="sym" data-target="text" data-sym="♡" title="빈 하트 (Alt+2)">♡</button>
+        <button type="button" class="sym" data-target="text" data-sym="★" title="별 (Alt+3)">★</button>
+        <button type="button" class="sym" data-target="text" data-sym="☆" title="빈 별 (Alt+4)">☆</button>
+        <button type="button" class="sym" data-target="text" data-sym="♪" title="음표 (Alt+5)">♪</button>
+        <button type="button" class="sym" data-target="text" data-sym="…" title="말줄임 (Alt+6)">…</button>
+        <button type="button" class="sym" data-target="text" data-sym="ㅋㅋ" title="웃음 (Alt+7)">ㅋㅋ</button>
+        <button type="button" class="sym" data-target="text" data-sym="ㅠㅠ" title="울음 (Alt+8)">ㅠㅠ</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>글꼴</label>
+        <select id="textFamily">
+          <optgroup label="기본">
+            <option value="system-ui, -apple-system, 'Malgun Gothic', sans-serif">기본</option>
+            <option value="'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif">고딕</option>
+            <option value="'Nanum Myeongjo', Batang, serif">명조</option>
+            <option value="Consolas, 'Courier New', monospace">고정폭</option>
+          </optgroup>
+          <optgroup label="만화 글꼴">
+            <option value="'Jua', 'Malgun Gothic', sans-serif">주아 (동글동글)</option>
+            <option value="'Nanum Pen Script', 'Malgun Gothic', cursive" selected>나눔손글씨 펜</option>
+            <option value="'Gaegu', 'Malgun Gothic', cursive">개구 (삐뚤빼뚤)</option>
+            <option value="'Black Han Sans', 'Malgun Gothic', sans-serif">검은고딕 (외침)</option>
+            <option value="'Do Hyeon', 'Malgun Gothic', sans-serif">도현 (또렷한 제목)</option>
+            <option value="'Gugi', 'Malgun Gothic', cursive">구기 (붓글씨)</option>
+            <option value="'Cute Font', 'Malgun Gothic', cursive">큐트 (아기자기)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="row"><label>크기</label><input id="textSize" type="range" min="8" max="300" value="48"><span class="val" id="textSizeVal">48</span></div>
+      <div class="row">
+        <label>색상</label><input id="textColor" type="color" value="#ffffff">
+        <label class="check"><input id="textBold" type="checkbox" checked> 굵게</label>
+      </div>
+      <div class="row">
+        <label>정렬</label>
+        <select id="textAlign">
+          <option value="left">왼쪽</option>
+          <option value="center">가운데</option>
+          <option value="right">오른쪽</option>
+        </select>
+      </div>
+      <div class="row">
+        <label class="check"><input id="textOutline" type="checkbox"> 외곽선</label>
+        <input id="textOutlineColor" type="color" value="#000000" title="외곽선 색">
+        <input id="textOutlineWidth" type="range" min="1" max="12" value="3" title="외곽선 두께">
+        <span class="val" id="textOutlineWidthVal">3</span>
+      </div>
+      <div class="hintline">캔버스를 클릭해 위치를 정하세요. 줄바꿈은 Enter로 직접 하고, 추가한 글은 이동 도구(V)로 끌어 옮길 수 있습니다.</div>
+      <button id="textCommit" class="btn primary full" disabled>텍스트 추가</button>
+    </div>
+
+    <div class="sec opt opt-bubble">
+      <h3>말풍선</h3>
+      <div class="row">
+        <label>모양</label>
+        <select id="bubbleShape">
+          <option value="ellipse">타원</option>
+          <option value="rect">사각</option>
+          <option value="thought">생각 (구름)</option>
+          <option value="burst">소리치기 (폭발)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>꼬리</label>
+        <select id="bubbleTail">
+          <option value="bl">아래 왼쪽</option>
+          <option value="br">아래 오른쪽</option>
+          <option value="bottom">아래 가운데</option>
+          <option value="left">왼쪽</option>
+          <option value="right">오른쪽</option>
+          <option value="none">없음</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>줄바꿈</label>
+        <label class="check"><input id="bubbleWrap" type="checkbox"> 자동</label>
+      </div>
+      <div class="row">
+        <label>글꼴</label>
+        <select id="bubbleFamily">
+          <optgroup label="기본">
+            <option value="system-ui, -apple-system, 'Malgun Gothic', sans-serif">기본</option>
+            <option value="'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif">고딕</option>
+            <option value="'Nanum Myeongjo', Batang, serif">명조</option>
+            <option value="Consolas, 'Courier New', monospace">고정폭</option>
+          </optgroup>
+          <optgroup label="만화 글꼴">
+            <option value="'Jua', 'Malgun Gothic', sans-serif" selected>주아 (동글동글)</option>
+            <option value="'Nanum Pen Script', 'Malgun Gothic', cursive">나눔손글씨 펜</option>
+            <option value="'Gaegu', 'Malgun Gothic', cursive">개구 (삐뚤빼뚤)</option>
+            <option value="'Black Han Sans', 'Malgun Gothic', sans-serif">검은고딕 (외침)</option>
+            <option value="'Do Hyeon', 'Malgun Gothic', sans-serif">도현 (또렷한 제목)</option>
+            <option value="'Gugi', 'Malgun Gothic', cursive">구기 (붓글씨)</option>
+            <option value="'Cute Font', 'Malgun Gothic', cursive">큐트 (아기자기)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="row"><label>글자 크기</label><input id="bubbleSize" type="range" min="8" max="120" value="32"><span class="val" id="bubbleSizeVal">32</span></div>
+      <div class="row">
+        <label>글자색</label><input id="bubbleTextColor" type="color" value="#1a1a1a">
+        <label class="check"><input id="bubbleBold" type="checkbox" checked> 굵게</label>
+      </div>
+      <div class="row">
+        <label>채우기</label><input id="bubbleFill" type="color" value="#ffffff">
+        <label class="check"><input id="bubbleShadow" type="checkbox" checked> 그림자</label>
+      </div>
+      <div class="row">
+        <label>외곽선</label>
+        <label class="check"><input id="bubbleOutline" type="checkbox"> 사용</label>
+        <input id="bubbleOutlineColor" type="color" value="#ffffff" title="글자 외곽선 색">
+      </div>
+      <div class="row">
+        <label>테두리</label>
+        <input id="bubbleStroke" type="color" value="#1a1a1a">
+        <input id="bubbleStrokeWidth" type="range" min="0" max="16" value="2" title="테두리 두께">
+        <span class="val" id="bubbleStrokeWidthVal">2</span>
+      </div>
+      <div class="hintline">캔버스를 드래그해 말풍선을 그리면 대사 입력창이 바로 뜹니다. 이동 도구(V)에서 글자를 끌면 글자만, 여백을 끌면 말풍선이 움직입니다.</div>
+      <div class="btns">
+        <button id="bubbleCommit" class="btn primary" disabled>말풍선 추가</button>
+        <button id="bubbleCancel" class="btn">취소</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>레이어</h3>
+      <div id="layerList" class="layers"></div>
+    </div>
+
+    <div class="sec">
+      <h3>색상 조정</h3>
+      <div class="row"><label>밝기</label><input id="brightness" type="range" min="50" max="150" step="1" value="100"><span class="val" id="brightnessVal">100</span></div>
+      <div class="row"><label>대비</label><input id="contrast" type="range" min="50" max="150" step="1" value="100"><span class="val" id="contrastVal">100</span></div>
+      <div class="row"><label>채도</label><input id="saturation" type="range" min="0" max="200" step="1" value="100"><span class="val" id="saturationVal">100</span></div>
+      <div class="row"><label>색조</label><input id="hue" type="range" min="-180" max="180" step="1" value="0"><span class="val" id="hueVal">0°</span></div>
+      <div class="row"><label>흐림</label><input id="blur" type="range" min="0" max="20" step="1" value="0"><span class="val" id="blurVal">0px</span></div>
+      <div class="chips" id="presets">
+        <button class="chip" data-preset="mono">흑백</button>
+        <button class="chip" data-preset="sepia">세피아</button>
+        <button class="chip" data-preset="invert">반전</button>
+        <button class="chip" data-preset="contrast">고대비</button>
+        <button class="chip" data-preset="bright">밝게</button>
+        <button class="chip" data-preset="vivid">선명하게</button>
+      </div>
+      <button id="filterReset" class="btn full" style="margin-top:8px">조정 초기화</button>
+    </div>
+
+    <div class="sec">
+      <h3>이미지</h3>
+      <div class="chips">
+        <button class="chip" id="rotL">왼쪽 90°</button>
+        <button class="chip" id="rotR">오른쪽 90°</button>
+        <button class="chip" id="flipH">좌우 반전</button>
+        <button class="chip" id="flipV">상하 반전</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>크기</label>
+        <input id="resizeW" type="number" min="1" class="num" title="가로">
+        <span class="muted">×</span>
+        <input id="resizeH" type="number" min="1" class="num" title="세로">
+      </div>
+      <div class="row">
+        <label class="check"><input id="lockRatio" type="checkbox" checked> 비율 유지</label>
+        <button id="resizeApply" class="btn" style="margin-left:auto">크기 적용</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>내보내기</h3>
+      <div class="row"><label>파일명</label><input id="exportName" type="text" value="edit"></div>
+      <div class="row">
+        <label>형식</label>
+        <select id="format">
+          <option value="image/png">PNG (투명 배경)</option>
+          <option value="image/jpeg" selected>JPG (사진)</option>
+          <option value="image/webp">WebP</option>
+        </select>
+      </div>
+      <div class="row" id="qualityRow">
+        <label>품질</label><input id="quality" type="range" min="40" max="100" value="92"><span class="val" id="qualityVal">92</span>
+      </div>
+      <button id="downloadBtn" class="btn primary full">파일로 저장</button>
+      <button id="saveAsBtn" class="btn full" style="margin-top:6px">다른 이름으로 저장</button>
+    </div>
+  </aside>
+</div>
+
+<input id="fileInput" type="file" accept="image/*" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  var stage = document.getElementById('stage');
+  var view = document.getElementById('view');
+  var vctx = view.getContext('2d');
+  var emptyEl = document.getElementById('empty');
+  var infoEl = document.getElementById('info');
+  var zoomLabel = document.getElementById('zoomLabel');
+  var fileInput = document.getElementById('fileInput');
+  var undoBtn = document.getElementById('undoBtn');
+  var redoBtn = document.getElementById('redoBtn');
+
+  var base = document.createElement('canvas');
+  var bctx = base.getContext('2d', { willReadFrequently: true });
+  var doc = document.createElement('canvas');
+  var dctx = doc.getContext('2d');
+  var flat = document.createElement('canvas');
+  var fctx = flat.getContext('2d');
+  var measureCanvas = document.createElement('canvas');
+  var mctx = measureCanvas.getContext('2d');
+  var objects = [];
+  var selected = null;
+  var selPart = null;
+  var layerSeq = { bubble: 0, text: 0 };
+
+  var DEFAULT_FILTERS = { brightness: 100, contrast: 100, saturation: 100, hue: 0, blur: 0, grayscale: 0, sepia: 0, invert: 0 };
+  var filters = Object.assign({}, DEFAULT_FILTERS);
+
+  var hasImage = false;
+  var dpr = window.devicePixelRatio || 1;
+  var viewW = 1, viewH = 1;
+  var zoom = 1, panX = 0, panY = 0;
+  var tool = 'move';
+  var crop = { x: 0, y: 0, w: 0, h: 0 };
+  var drag = null;
+  var stroke = null;
+  var cropDrag = null;
+  var spaceHeld = false;
+  var hover = null;
+  var pendingText = null;
+  var checker = null;
+  var history = [];
+  var hIndex = -1;
+  var MAX_HISTORY = 8;
+
+  var brush = { size: 24, opacity: 1, color: '#ff5a5a' };
+  var textOpt = {
+    size: 48,
+    color: '#ffffff',
+    family: '\'Nanum Pen Script\', \'Malgun Gothic\', cursive',
+    bold: true,
+    align: 'left',
+    maxWidth: 0,
+    lineHeight: 1.3,
+    outline: false,
+    outlineColor: '#000000',
+    outlineWidth: 3
+  };
+
+  var bubbleOpt = {
+    shape: 'ellipse',
+    tail: 'bl',
+    fill: '#ffffff',
+    stroke: '#1a1a1a',
+    strokeWidth: 2,
+    padding: 14,
+    family: '\'Jua\', \'Malgun Gothic\', sans-serif',
+    size: 32,
+    color: '#1a1a1a',
+    bold: true,
+    outline: false,
+    outlineColor: '#ffffff',
+    shadow: true,
+    wrap: false,
+    lineHeight: 1.25
+  };
+  var pendingBubble = null;
+  var pendingTextOffset = { x: 0, y: 0 };
+
+  var textContent = document.getElementById('textContent');
+  var textFamily = document.getElementById('textFamily');
+  var textSize = document.getElementById('textSize');
+  var textColor = document.getElementById('textColor');
+  var textBold = document.getElementById('textBold');
+  var textCommitBtn = document.getElementById('textCommit');
+  var textAlign = document.getElementById('textAlign');
+  var textOutline = document.getElementById('textOutline');
+  var textOutlineColor = document.getElementById('textOutlineColor');
+  var textOutlineWidth = document.getElementById('textOutlineWidth');
+
+  var bubbleText = document.getElementById('bubbleText');
+  var bubbleShape = document.getElementById('bubbleShape');
+  var bubbleTail = document.getElementById('bubbleTail');
+  var bubbleWrap = document.getElementById('bubbleWrap');
+  var bubbleFamily = document.getElementById('bubbleFamily');
+  var bubbleSize = document.getElementById('bubbleSize');
+  var bubbleTextColor = document.getElementById('bubbleTextColor');
+  var bubbleBold = document.getElementById('bubbleBold');
+  var bubbleFill = document.getElementById('bubbleFill');
+  var bubbleOutline = document.getElementById('bubbleOutline');
+  var bubbleOutlineColor = document.getElementById('bubbleOutlineColor');
+  var bubbleStroke = document.getElementById('bubbleStroke');
+  var bubbleStrokeWidth = document.getElementById('bubbleStrokeWidth');
+  var bubbleCommitBtn = document.getElementById('bubbleCommit');
+  var bubbleShadow = document.getElementById('bubbleShadow');
+  var bubbleEditor = document.getElementById('bubbleEditor');
+  var bubbleInlineClose = document.getElementById('bubbleInlineClose');
+
+  var brushSize = document.getElementById('brushSize');
+  var brushOpacity = document.getElementById('brushOpacity');
+  var brushColor = document.getElementById('brushColor');
+
+  var nudgeHint = document.getElementById('nudgeHint');
+  var nudgeDelete = document.getElementById('nudgeDelete');
+  var bubbleCenterBtn = document.getElementById('bubbleCenterBtn');
+  var textCenterBtn = document.getElementById('textCenterBtn');
+  var bubbleNudgeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-nudge-bubble]'));
+  var textNudgeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-nudge-text]'));
+  var layerList = document.getElementById('layerList');
+
+  var cropReadout = document.getElementById('cropReadout');
+  var resizeW = document.getElementById('resizeW');
+  var resizeH = document.getElementById('resizeH');
+  var lockRatio = document.getElementById('lockRatio');
+
+  var formatSel = document.getElementById('format');
+  var quality = document.getElementById('quality');
+  var qualityVal = document.getElementById('qualityVal');
+  var qualityRow = document.getElementById('qualityRow');
+  var exportName = document.getElementById('exportName');
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function makeChecker() {
+    var c = document.createElement('canvas');
+    c.width = 16; c.height = 16;
+    var x = c.getContext('2d');
+    x.fillStyle = '#3a3f49';
+    x.fillRect(0, 0, 16, 16);
+    x.fillStyle = '#2c313a';
+    x.fillRect(0, 0, 8, 8);
+    x.fillRect(8, 8, 8, 8);
+    checker = c;
+  }
+
+  function resizeView() {
+    var r = stage.getBoundingClientRect();
+    viewW = Math.max(1, Math.floor(r.width));
+    viewH = Math.max(1, Math.floor(r.height));
+    dpr = window.devicePixelRatio || 1;
+    view.width = Math.round(viewW * dpr);
+    view.height = Math.round(viewH * dpr);
+    view.style.width = viewW + 'px';
+    view.style.height = viewH + 'px';
+    render();
+  }
+
+  function scheduleRender() {
+    if (scheduleRender.pending) return;
+    scheduleRender.pending = true;
+    requestAnimationFrame(function () {
+      scheduleRender.pending = false;
+      render();
+    });
+  }
+
+  function docPoint(e) {
+    var r = view.getBoundingClientRect();
+    var sx = e.clientX - r.left;
+    var sy = e.clientY - r.top;
+    return { x: (sx - panX) / zoom, y: (sy - panY) / zoom, sx: sx, sy: sy };
+  }
+
+  function insideDoc(p) {
+    return p.x >= 0 && p.y >= 0 && p.x <= base.width && p.y <= base.height;
+  }
+
+  function render() {
+    if (view.width === 0) return;
+    vctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    vctx.clearRect(0, 0, viewW, viewH);
+    if (!hasImage) return;
+
+    var dw = base.width * zoom;
+    var dh = base.height * zoom;
+
+    vctx.save();
+    vctx.fillStyle = vctx.createPattern(checker, 'repeat');
+    vctx.fillRect(panX, panY, dw, dh);
+    vctx.restore();
+
+    vctx.save();
+    vctx.translate(panX, panY);
+    vctx.scale(zoom, zoom);
+    vctx.imageSmoothingEnabled = true;
+    vctx.imageSmoothingQuality = 'high';
+    vctx.drawImage(doc, 0, 0);
+    vctx.restore();
+
+    if (tool === 'crop') drawCropOverlay();
+    if (tool === 'text' && pendingText) drawTextPreview();
+    if (tool === 'bubble' && pendingBubble) {
+      drawBubblePreview();
+      positionBubbleEditor();
+    }
+    if (selected) drawSelectionOverlay();
+    if (hasImage && tool === 'bubble' && pendingBubble) drawBubbleHandles(pendingBubble);
+    else if (selected && selected.kind === 'bubble' && (tool === 'move' || tool === 'bubble') && hasImage) drawBubbleHandles(selected.rect);
+    if ((tool === 'brush' || tool === 'eraser') && hover && !(drag && drag.type === 'pan')) drawBrushCursor();
+  }
+
+  function drawBrushCursor() {
+    var r = Math.max(2, (brush.size * zoom) / 2);
+    vctx.save();
+    vctx.beginPath();
+    vctx.arc(hover.sx, hover.sy, r, 0, Math.PI * 2);
+    vctx.strokeStyle = 'rgba(0,0,0,0.75)';
+    vctx.lineWidth = 3;
+    vctx.stroke();
+    vctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    vctx.lineWidth = 1;
+    vctx.stroke();
+    vctx.restore();
+  }
+
+  function cropScreen() {
+    return { x: panX + crop.x * zoom, y: panY + crop.y * zoom, w: crop.w * zoom, h: crop.h * zoom };
+  }
+
+  function drawCropOverlay() {
+    var s = cropScreen();
+    var dx = panX, dy = panY;
+    var dw = base.width * zoom, dh = base.height * zoom;
+    vctx.save();
+    vctx.fillStyle = 'rgba(0,0,0,0.55)';
+    vctx.fillRect(dx, dy, dw, Math.max(0, s.y - dy));
+    vctx.fillRect(dx, s.y + s.h, dw, Math.max(0, dy + dh - (s.y + s.h)));
+    vctx.fillRect(dx, s.y, Math.max(0, s.x - dx), s.h);
+    vctx.fillRect(s.x + s.w, s.y, Math.max(0, dx + dw - (s.x + s.w)), s.h);
+
+    vctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    vctx.lineWidth = 1;
+    for (var i = 1; i < 3; i++) {
+      var gx = s.x + (s.w * i) / 3;
+      var gy = s.y + (s.h * i) / 3;
+      vctx.beginPath(); vctx.moveTo(gx, s.y); vctx.lineTo(gx, s.y + s.h); vctx.stroke();
+      vctx.beginPath(); vctx.moveTo(s.x, gy); vctx.lineTo(s.x + s.w, gy); vctx.stroke();
+    }
+
+    vctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    vctx.strokeRect(s.x + 0.5, s.y + 0.5, Math.max(0, s.w - 1), Math.max(0, s.h - 1));
+
+    var hs = 8;
+    var pts = [
+      [s.x, s.y], [s.x + s.w / 2, s.y], [s.x + s.w, s.y],
+      [s.x + s.w, s.y + s.h / 2], [s.x + s.w, s.y + s.h],
+      [s.x + s.w / 2, s.y + s.h], [s.x, s.y + s.h], [s.x, s.y + s.h / 2]
+    ];
+    vctx.fillStyle = '#fff';
+    for (var j = 0; j < pts.length; j++) {
+      vctx.fillRect(pts[j][0] - hs / 2, pts[j][1] - hs / 2, hs, hs);
+    }
+    vctx.restore();
+  }
+
+  function fontStr(size, o) {
+    return (o.bold ? '700 ' : '') + size + 'px ' + o.family;
+  }
+
+  function insertSymbol(target, symbol) {
+    var start = target.selectionStart;
+    var end = target.selectionEnd;
+    if (start == null || end == null) {
+      start = end = target.value.length;
+    }
+    target.value = target.value.slice(0, start) + symbol + target.value.slice(end);
+    var pos = start + symbol.length;
+    target.focus();
+    try { target.setSelectionRange(pos, pos); } catch (err) {}
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function wrapLines(ctx, text, maxWidth) {
+    var out = [];
+    var paras = text.split('\n');
+    for (var p = 0; p < paras.length; p++) {
+      var para = paras[p];
+      if (maxWidth <= 0 || !para) {
+        out.push(para);
+        continue;
+      }
+      var line = '';
+      for (var i = 0; i < para.length; i++) {
+        var test = line + para.charAt(i);
+        if (line && ctx.measureText(test).width > maxWidth) {
+          out.push(line);
+          line = para.charAt(i);
+        } else {
+          line = test;
+        }
+      }
+      out.push(line);
+    }
+    return out;
+  }
+
+  function textLayout(ctx, text, anchor, o, maxWidth) {
+    ctx.save();
+    ctx.font = fontStr(o.size, o);
+    var lines = wrapLines(ctx, text, maxWidth);
+    var widest = 0;
+    for (var i = 0; i < lines.length; i++) widest = Math.max(widest, ctx.measureText(lines[i]).width);
+    ctx.restore();
+    var x = anchor.x;
+    if (o.align === 'center') x = anchor.x + (maxWidth > 0 ? maxWidth / 2 : 0) - widest / 2;
+    else if (o.align === 'right') x = anchor.x + (maxWidth > 0 ? maxWidth : 0) - widest;
+    var lh = o.size * o.lineHeight;
+    return { lines: lines, lh: lh, widest: widest, x: x, y: anchor.y, h: lines.length * lh };
+  }
+
+  function paintText(ctx, text, anchor, o, maxWidth) {
+    if (!text) return;
+    var lay = textLayout(ctx, text, anchor, o, maxWidth);
+    ctx.save();
+    ctx.font = fontStr(o.size, o);
+    ctx.textBaseline = 'top';
+    for (var i = 0; i < lay.lines.length; i++) {
+      var line = lay.lines[i];
+      var w = ctx.measureText(line).width;
+      var x = anchor.x;
+      if (o.align === 'center') x = anchor.x + (maxWidth > 0 ? maxWidth / 2 : 0) - w / 2;
+      else if (o.align === 'right') x = anchor.x + (maxWidth > 0 ? maxWidth : 0) - w;
+      var y = anchor.y + i * lay.lh;
+      if (o.outline && o.outlineWidth > 0) {
+        ctx.lineWidth = o.outlineWidth;
+        ctx.strokeStyle = o.outlineColor;
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
+        ctx.strokeText(line, x, y);
+      }
+      ctx.fillStyle = o.color;
+      ctx.fillText(line, x, y);
+    }
+    ctx.restore();
+  }
+
+  function drawTextPreview() {
+    vctx.save();
+    vctx.translate(panX, panY);
+    vctx.scale(zoom, zoom);
+    vctx.filter = filterString();
+    paintText(vctx, textContent.value, pendingText, textOpt, textOpt.maxWidth);
+    vctx.restore();
+  }
+
+  function addTail(ctx, b1, b2, tip, center) {
+    var m1x = (b1.x + tip.x) / 2, m1y = (b1.y + tip.y) / 2;
+    var c1x = m1x + (center.x - m1x) * 0.22, c1y = m1y + (center.y - m1y) * 0.22;
+    var m2x = (b2.x + tip.x) / 2, m2y = (b2.y + tip.y) / 2;
+    var c2x = m2x + (center.x - m2x) * 0.22, c2y = m2y + (center.y - m2y) * 0.22;
+    ctx.quadraticCurveTo(c1x, c1y, tip.x, tip.y);
+    ctx.quadraticCurveTo(c2x, c2y, b2.x, b2.y);
+  }
+
+  function tailGeometry(r, dir) {
+    var RAD = Math.PI / 180;
+    var table = { bl: [158, 112], br: [68, 22], bottom: [118, 62], left: [205, 155], right: [25, -25] };
+    var t = table[dir];
+    if (!t) return null;
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var rx = Math.max(0, r.w / 2), ry = Math.max(0, r.h / 2);
+    var len = Math.max(16, Math.min(r.w, r.h) * 0.38);
+    var mid = ((t[0] + t[1]) / 2) * RAD;
+    var mx = cx + rx * Math.cos(mid), my = cy + ry * Math.sin(mid);
+    var ox = mx - cx, oy = my - cy;
+    var ol = Math.sqrt(ox * ox + oy * oy) || 1;
+    return {
+      b1: { x: cx + rx * Math.cos(t[1] * RAD), y: cy + ry * Math.sin(t[1] * RAD) },
+      b2: { x: cx + rx * Math.cos(t[0] * RAD), y: cy + ry * Math.sin(t[0] * RAD) },
+      tip: { x: mx + (ox / ol) * len, y: my + (oy / ol) * len },
+      mid: mid,
+      len: len
+    };
+  }
+
+  function ellipseBubblePath(ctx, r, dir) {
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var rx = Math.max(0, r.w / 2), ry = Math.max(0, r.h / 2);
+    var RAD = Math.PI / 180;
+    var table = { bl: [158, 112], br: [68, 22], bottom: [118, 62], left: [205, 155], right: [25, -25] };
+    var t = table[dir];
+    if (!t) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      return;
+    }
+    var g = tailGeometry(r, dir);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, t[0] * RAD, (t[1] + 360) * RAD);
+    addTail(ctx, g.b1, g.b2, g.tip, { x: cx, y: cy });
+    ctx.closePath();
+  }
+
+  function thoughtBubblePath(ctx, r) {
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var rx = Math.max(0, r.w / 2), ry = Math.max(0, r.h / 2);
+    var n = 12;
+    var bulge = 1.18;
+    ctx.beginPath();
+    for (var i = 0; i <= n; i++) {
+      var a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      var px = cx + rx * Math.cos(a);
+      var py = cy + ry * Math.sin(a);
+      if (i === 0) {
+        ctx.moveTo(px, py);
+      } else {
+        var am = ((i - 0.5) / n) * Math.PI * 2 - Math.PI / 2;
+        ctx.quadraticCurveTo(cx + rx * bulge * Math.cos(am), cy + ry * bulge * Math.sin(am), px, py);
+      }
+    }
+    ctx.closePath();
+  }
+
+  function burstBubblePath(ctx, r) {
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var rx = Math.max(0, r.w / 2), ry = Math.max(0, r.h / 2);
+    var spikes = 16;
+    ctx.beginPath();
+    for (var i = 0; i < spikes * 2; i++) {
+      var a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+      var f = i % 2 === 0 ? 1 : 0.78;
+      var px = cx + rx * f * Math.cos(a);
+      var py = cy + ry * f * Math.sin(a);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  function drawThoughtTail(ctx, r, o) {
+    if (o.tail === 'none') return;
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var rx = Math.max(0, r.w / 2), ry = Math.max(0, r.h / 2);
+    var g = tailGeometry(r, o.tail);
+    if (!g) return;
+    var mx = cx + rx * Math.cos(g.mid), my = cy + ry * Math.sin(g.mid);
+    var dx = mx - cx, dy = my - cy;
+    var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+    dx /= dl; dy /= dl;
+    var base = Math.min(r.w, r.h);
+    var dists = [0.18, 0.32, 0.44];
+    var radii = [0.085, 0.055, 0.032];
+    for (var i = 0; i < dists.length; i++) {
+      var px = mx + dx * base * dists[i];
+      var py = my + dy * base * dists[i];
+      var rad = Math.max(1.5, base * radii[i]);
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fillStyle = o.fill;
+      ctx.fill();
+      if (o.strokeWidth > 0) {
+        ctx.lineWidth = Math.max(1, o.strokeWidth * 0.8);
+        ctx.strokeStyle = o.stroke;
+        ctx.stroke();
+      }
+    }
+  }
+
+  function rectBubblePath(ctx, r, dir) {
+    var x = r.x, y = r.y, w = r.w, h = r.h;
+    var rad = Math.max(0, Math.min(Math.min(w, h) * 0.3, w / 2, h / 2));
+    var len = Math.max(16, Math.min(w, h) * 0.38);
+    var cx = x + w / 2, cy = y + h / 2;
+    var hasBottom = dir === 'bl' || dir === 'br' || dir === 'bottom';
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+
+    if (dir === 'right') {
+      var r1 = { x: x + w, y: y + h * 0.54 };
+      var r2 = { x: x + w, y: y + h * 0.80 };
+      ctx.lineTo(r1.x, r1.y);
+      addTail(ctx, r1, r2, { x: x + w + len, y: y + h * 0.94 }, { x: cx, y: cy });
+      ctx.lineTo(x + w, y + h - rad);
+    } else {
+      ctx.lineTo(x + w, y + h - rad);
+    }
+
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+
+    if (hasBottom) {
+      var fr, fl, tipx;
+      if (dir === 'bl') { fr = 0.66; fl = 0.42; tipx = 0.16; }
+      else if (dir === 'br') { fr = 0.58; fl = 0.34; tipx = 0.84; }
+      else { fr = 0.60; fl = 0.40; tipx = 0.50; }
+      var b1 = { x: x + w * fr, y: y + h };
+      var b2 = { x: x + w * fl, y: y + h };
+      ctx.lineTo(b1.x, b1.y);
+      addTail(ctx, b1, b2, { x: x + w * tipx, y: y + h + len }, { x: cx, y: cy });
+      ctx.lineTo(x + rad, y + h);
+    } else {
+      ctx.lineTo(x + rad, y + h);
+    }
+
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+
+    if (dir === 'left') {
+      var l1 = { x: x, y: y + h * 0.80 };
+      var l2 = { x: x, y: y + h * 0.54 };
+      ctx.lineTo(l1.x, l1.y);
+      addTail(ctx, l1, l2, { x: x - len, y: y + h * 0.94 }, { x: cx, y: cy });
+      ctx.lineTo(x, y + rad);
+    } else {
+      ctx.lineTo(x, y + rad);
+    }
+
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+  }
+
+  function bubbleTextLayout(ctx, r, o, text) {
+    var inset = o.shape === 'burst' ? 0.19 : (o.shape === 'ellipse' || o.shape === 'thought') ? 0.15 : 0;
+    var padX = inset ? r.w * inset : Math.max(8, o.padding);
+    var padY = inset ? r.h * inset : Math.max(8, o.padding);
+    var maxW = o.wrap ? Math.max(12, r.w - padX * 2) : 0;
+    var maxH = Math.max(12, r.h - padY * 2);
+    var size = o.size;
+    var lines, lh, widest, i;
+    ctx.save();
+    for (;;) {
+      ctx.font = fontStr(size, o);
+      lines = wrapLines(ctx, text, maxW);
+      lh = size * o.lineHeight;
+      widest = 0;
+      for (i = 0; i < lines.length; i++) widest = Math.max(widest, ctx.measureText(lines[i]).width);
+      var fits = o.wrap ? (lines.length * lh <= maxH && widest <= maxW) : (lines.length * lh <= maxH);
+      if (fits || size <= 8) break;
+      size -= 2;
+    }
+    ctx.restore();
+    var totalH = lines.length * lh;
+    return {
+      size: size,
+      lines: lines,
+      lh: lh,
+      widest: widest,
+      totalH: totalH,
+      cx: r.x + r.w / 2,
+      startY: r.y + (r.h - totalH) / 2
+    };
+  }
+
+  function paintBubbleText(ctx, r, o, text, offset) {
+    var lay = bubbleTextLayout(ctx, r, o, text);
+    var ox = offset ? offset.x : 0;
+    var oy = offset ? offset.y : 0;
+    var cx = lay.cx + ox;
+    var startY = lay.startY + oy;
+    ctx.save();
+    ctx.font = fontStr(lay.size, o);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (var i = 0; i < lay.lines.length; i++) {
+      var y = startY + i * lay.lh;
+      if (o.outline) {
+        ctx.lineWidth = Math.max(1, lay.size * 0.14);
+        ctx.strokeStyle = o.outlineColor;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(lay.lines[i], cx, y);
+      }
+      ctx.fillStyle = o.color;
+      ctx.fillText(lay.lines[i], cx, y);
+    }
+    ctx.restore();
+  }
+
+  function paintBubble(ctx, r, o, text, offset) {
+    if (!r || r.w < 2 || r.h < 2) return;
+    ctx.save();
+    var tailGeo = o.shape === 'burst' && o.tail !== 'none' ? tailGeometry(r, o.tail) : null;
+
+    if (tailGeo) {
+      ctx.beginPath();
+      ctx.moveTo(tailGeo.b1.x, tailGeo.b1.y);
+      ctx.lineTo(tailGeo.tip.x, tailGeo.tip.y);
+      ctx.lineTo(tailGeo.b2.x, tailGeo.b2.y);
+      ctx.closePath();
+      ctx.fillStyle = o.fill;
+      ctx.fill();
+    }
+
+    if (o.shape === 'thought') thoughtBubblePath(ctx, r);
+    else if (o.shape === 'burst') burstBubblePath(ctx, r);
+    else if (o.shape === 'rect') rectBubblePath(ctx, r, o.tail);
+    else ellipseBubblePath(ctx, r, o.tail);
+
+    ctx.fillStyle = o.fill;
+    if (o.shadow) {
+      var m = Math.min(r.w, r.h);
+      ctx.shadowColor = 'rgba(0,0,0,0.18)';
+      ctx.shadowBlur = Math.max(4, m * 0.09);
+      ctx.shadowOffsetY = Math.max(2, m * 0.025);
+    }
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    if (o.strokeWidth > 0) {
+      ctx.lineWidth = o.strokeWidth;
+      ctx.strokeStyle = o.stroke;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+
+    if (tailGeo && o.strokeWidth > 0) {
+      ctx.beginPath();
+      ctx.moveTo(tailGeo.b1.x, tailGeo.b1.y);
+      ctx.lineTo(tailGeo.tip.x, tailGeo.tip.y);
+      ctx.lineTo(tailGeo.b2.x, tailGeo.b2.y);
+      ctx.lineWidth = o.strokeWidth;
+      ctx.strokeStyle = o.stroke;
+      ctx.lineJoin = 'miter';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    if (o.shape === 'thought') drawThoughtTail(ctx, r, o);
+
+    if (text && text.trim() && r.w > 16 && r.h > 16) paintBubbleText(ctx, r, o, text, offset);
+    ctx.restore();
+  }
+
+  function drawBubblePreview() {
+    if (bubbleText.value.trim()) {
+      pendingTextOffset = clampTextOffset(pendingTextOffset, pendingBubble, bubbleOpt, bubbleText.value);
+    }
+    vctx.save();
+    vctx.translate(panX, panY);
+    vctx.scale(zoom, zoom);
+    vctx.filter = filterString();
+    paintBubble(vctx, pendingBubble, bubbleOpt, bubbleText.value, pendingTextOffset);
+    vctx.restore();
+  }
+
+  function hideBubbleEditor() {
+    bubbleEditor.classList.add('hidden');
+  }
+
+  function showBubbleEditor(focus) {
+    if (!pendingBubble || tool !== 'bubble') {
+      hideBubbleEditor();
+      return;
+    }
+    bubbleEditor.classList.remove('hidden');
+    positionBubbleEditor();
+    if (focus) {
+      bubbleText.focus();
+      bubbleText.select();
+    }
+  }
+
+  function positionBubbleEditor() {
+    if (bubbleEditor.classList.contains('hidden') || !pendingBubble) return;
+    var sx = panX + pendingBubble.x * zoom;
+    var sy = panY + pendingBubble.y * zoom;
+    var sw = pendingBubble.w * zoom;
+    var sh = pendingBubble.h * zoom;
+    var ew = bubbleEditor.offsetWidth || 244;
+    var eh = bubbleEditor.offsetHeight || 110;
+    var left = clamp(sx + sw / 2 - ew / 2, 8, Math.max(8, viewW - ew - 8));
+    var top = sy + sh + 12;
+    if (top + eh > viewH - 8) top = sy - eh - 12;
+    top = clamp(top, 8, Math.max(8, viewH - eh - 8));
+    bubbleEditor.style.left = left + 'px';
+    bubbleEditor.style.top = top + 'px';
+  }
+
+  function filterString() {
+    var p = [];
+    if (filters.brightness !== 100) p.push('brightness(' + filters.brightness + '%)');
+    if (filters.contrast !== 100) p.push('contrast(' + filters.contrast + '%)');
+    if (filters.saturation !== 100) p.push('saturate(' + filters.saturation + '%)');
+    if (filters.hue !== 0) p.push('hue-rotate(' + filters.hue + 'deg)');
+    if (filters.blur > 0) p.push('blur(' + filters.blur + 'px)');
+    if (filters.grayscale > 0) p.push('grayscale(' + filters.grayscale + '%)');
+    if (filters.sepia > 0) p.push('sepia(' + filters.sepia + '%)');
+    if (filters.invert > 0) p.push('invert(' + filters.invert + '%)');
+    return p.length ? p.join(' ') : 'none';
+  }
+
+  function drawObjects(ctx) {
+    for (var i = 0; i < objects.length; i++) {
+      var ob = objects[i];
+      if (ob.hidden) continue;
+      if (ob.kind === 'bubble') {
+        paintBubble(ctx, ob.rect, ob.opts, ob.text, ob.textOffset);
+      } else if (ob.kind === 'text') {
+        drawTextObject(ctx, ob);
+      }
+    }
+  }
+
+  function compose() {
+    if (flat.width !== base.width || flat.height !== base.height) {
+      flat.width = base.width;
+      flat.height = base.height;
+    }
+    fctx.setTransform(1, 0, 0, 1, 0, 0);
+    fctx.clearRect(0, 0, flat.width, flat.height);
+    fctx.drawImage(base, 0, 0);
+    drawObjects(fctx);
+  }
+
+  function recompose() {
+    if (!hasImage) return;
+    compose();
+    if (doc.width !== base.width || doc.height !== base.height) {
+      doc.width = base.width;
+      doc.height = base.height;
+    }
+    dctx.setTransform(1, 0, 0, 1, 0, 0);
+    dctx.clearRect(0, 0, doc.width, doc.height);
+    dctx.filter = filterString();
+    dctx.drawImage(flat, 0, 0);
+    dctx.filter = 'none';
+  }
+
+  function cloneObjects() {
+    return JSON.parse(JSON.stringify(objects));
+  }
+
+  function textObjectBounds(ob) {
+    return textLayout(mctx, ob.text, { x: ob.x, y: ob.y }, ob.opts, ob.opts.maxWidth);
+  }
+
+  function drawTextObject(ctx, ob) {
+    var rot = ob.rot || 0;
+    if (!rot) {
+      paintText(ctx, ob.text, { x: ob.x, y: ob.y }, ob.opts, ob.opts.maxWidth);
+      return;
+    }
+    var b = textObjectBounds(ob);
+    var cx = b.x + b.widest / 2;
+    var cy = b.y + b.h / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.translate(-cx, -cy);
+    paintText(ctx, ob.text, { x: ob.x, y: ob.y }, ob.opts, ob.opts.maxWidth);
+    ctx.restore();
+  }
+
+  function rotatePointAround(cx, cy, ang, x, y) {
+    var dx = x - cx, dy = y - cy;
+    var c = Math.cos(ang), s = Math.sin(ang);
+    return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+  }
+
+  function textObjectCenter(ob) {
+    var b = textObjectBounds(ob);
+    return { x: b.x + b.widest / 2, y: b.y + b.h / 2, b: b };
+  }
+
+  function pointInTextObject(ob, p, pad) {
+    var c = textObjectCenter(ob);
+    var local = rotatePointAround(c.x, c.y, -(ob.rot || 0), p.x, p.y);
+    return local.x >= c.b.x - pad && local.x <= c.b.x + c.b.widest + pad &&
+      local.y >= c.b.y - pad && local.y <= c.b.y + c.b.h + pad;
+  }
+
+  function rotationHandleDoc(ob) {
+    var c = textObjectCenter(ob);
+    var point = { x: c.x, y: c.b.y - 26 / zoom };
+    if (ob.rot) point = rotatePointAround(c.x, c.y, ob.rot, point.x, point.y);
+    return point;
+  }
+
+  function hitRotationHandle(ob, p) {
+    var hp = rotationHandleDoc(ob);
+    var r = 10 / zoom;
+    var dx = p.x - hp.x, dy = p.y - hp.y;
+    return dx * dx + dy * dy <= r * r;
+  }
+
+  function hitRotationRing(ob, p) {
+    var c = textObjectCenter(ob);
+    var local = rotatePointAround(c.x, c.y, -(ob.rot || 0), p.x, p.y);
+    var m = 26 / zoom;
+    var insideOuter = local.x >= c.b.x - m && local.x <= c.b.x + c.b.widest + m &&
+      local.y >= c.b.y - m && local.y <= c.b.y + c.b.h + m;
+    var insideInner = local.x >= c.b.x && local.x <= c.b.x + c.b.widest &&
+      local.y >= c.b.y && local.y <= c.b.y + c.b.h;
+    return insideOuter && !insideInner;
+  }
+
+  function startTextRotate(ob, p) {
+    var c = textObjectCenter(ob);
+    drag = {
+      type: 'rotate-text',
+      obj: ob,
+      center: { x: c.x, y: c.y },
+      startAngle: Math.atan2(p.y - c.y, p.x - c.x),
+      rot0: ob.rot || 0,
+      moved: false
+    };
+    view.style.cursor = 'grabbing';
+    scheduleRender();
+  }
+
+  function bubbleTextBounds(ob) {
+    var lay = bubbleTextLayout(mctx, ob.rect, ob.opts, ob.text);
+    var ox = ob.textOffset ? ob.textOffset.x : 0;
+    var oy = ob.textOffset ? ob.textOffset.y : 0;
+    return {
+      x: lay.cx + ox - lay.widest / 2,
+      y: lay.startY + oy,
+      w: lay.widest,
+      h: lay.totalH
+    };
+  }
+
+  function pointInBubble(ob, x, y) {
+    var r = ob.rect;
+    if (ob.opts.shape === 'rect') {
+      return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    }
+    var nx = (x - (r.x + r.w / 2)) / Math.max(1, r.w / 2);
+    var ny = (y - (r.y + r.h / 2)) / Math.max(1, r.h / 2);
+    return nx * nx + ny * ny <= 1.06;
+  }
+
+  function objectBounds(ob) {
+    if (ob.kind === 'bubble') {
+      if (selPart === 'text' && ob.text && ob.text.trim()) return bubbleTextBounds(ob);
+      return ob.rect;
+    }
+    var b = textObjectBounds(ob);
+    return { x: b.x, y: b.y, w: b.widest, h: b.h };
+  }
+
+  function hitTestObjects(p) {
+    var pad = 4;
+    for (var i = objects.length - 1; i >= 0; i--) {
+      var ob = objects[i];
+      if (ob.hidden) continue;
+      if (ob.kind === 'bubble') {
+        if (ob.text && ob.text.trim()) {
+          var tb = bubbleTextBounds(ob);
+          if (p.x >= tb.x - pad && p.x <= tb.x + tb.w + pad && p.y >= tb.y - pad && p.y <= tb.y + tb.h + pad) {
+            return { obj: ob, part: 'text' };
+          }
+        }
+        if (pointInBubble(ob, p.x, p.y)) return { obj: ob, part: 'body' };
+      } else if (ob.kind === 'text') {
+        if (pointInTextObject(ob, p, pad)) return { obj: ob, part: 'text' };
+      }
+    }
+    return null;
+  }
+
+  function flattenObjects() {
+    if (!objects.length) return;
+    compose();
+    var c = document.createElement('canvas');
+    c.width = base.width;
+    c.height = base.height;
+    c.getContext('2d').drawImage(flat, 0, 0);
+    base.width = c.width;
+    base.height = c.height;
+    bctx.clearRect(0, 0, base.width, base.height);
+    bctx.drawImage(c, 0, 0);
+    objects = [];
+    selected = null;
+    selPart = null;
+  }
+
+  function drawSelectionOverlay() {
+    if (!selected || !hasImage) return;
+    var b = objectBounds(selected);
+    var rot = selected.kind === 'text' ? (selected.rot || 0) : 0;
+    var cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    var pts = [
+      { x: b.x, y: b.y }, { x: b.x + b.w, y: b.y },
+      { x: b.x + b.w, y: b.y + b.h }, { x: b.x, y: b.y + b.h }
+    ];
+    if (rot) {
+      pts = pts.map(function (pt) { return rotatePointAround(cx, cy, rot, pt.x, pt.y); });
+    }
+    vctx.save();
+    vctx.setLineDash([6, 4]);
+    vctx.lineWidth = 1.5;
+    vctx.strokeStyle = selPart === 'text' && selected.kind === 'bubble' ? 'rgba(255,196,0,0.95)' : 'rgba(79,140,255,0.95)';
+    vctx.beginPath();
+    for (var i = 0; i < pts.length; i++) {
+      var sx = panX + pts[i].x * zoom;
+      var sy = panY + pts[i].y * zoom;
+      if (i === 0) vctx.moveTo(sx, sy); else vctx.lineTo(sx, sy);
+    }
+    vctx.closePath();
+    vctx.stroke();
+    vctx.restore();
+    if (selected.kind === 'text' && tool === 'move') drawRotationHandle(selected);
+  }
+
+  function drawRotationHandle(ob) {
+    var c = textObjectCenter(ob);
+    var top = { x: c.x, y: c.b.y };
+    var hp = { x: c.x, y: c.b.y - 26 / zoom };
+    if (ob.rot) {
+      top = rotatePointAround(c.x, c.y, ob.rot, top.x, top.y);
+      hp = rotationHandleDoc(ob);
+    }
+    var tx = panX + top.x * zoom, ty = panY + top.y * zoom;
+    var hx = panX + hp.x * zoom, hy = panY + hp.y * zoom;
+    vctx.save();
+    vctx.setLineDash([]);
+    vctx.lineWidth = 1.2;
+    vctx.strokeStyle = 'rgba(79,140,255,0.8)';
+    vctx.beginPath();
+    vctx.moveTo(tx, ty);
+    vctx.lineTo(hx, hy);
+    vctx.stroke();
+    vctx.beginPath();
+    vctx.arc(hx, hy, 5, 0, Math.PI * 2);
+    vctx.fillStyle = '#ffffff';
+    vctx.fill();
+    vctx.strokeStyle = '#4f8cff';
+    vctx.stroke();
+    vctx.restore();
+  }
+
+  function handleCursor(mode) {
+    if (mode === 'n' || mode === 's') return 'ns-resize';
+    if (mode === 'e' || mode === 'w') return 'ew-resize';
+    if (mode === 'nw' || mode === 'se') return 'nwse-resize';
+    return 'nesw-resize';
+  }
+
+  function hitBubbleHandle(p) {
+    var r = null;
+    if (tool === 'bubble' && pendingBubble) r = pendingBubble;
+    else if (selected && selected.kind === 'bubble' && (tool === 'move' || tool === 'bubble')) r = selected.rect;
+    if (!r || r.w <= 0 || r.h <= 0) return null;
+    var x = panX + r.x * zoom, y = panY + r.y * zoom;
+    var w = r.w * zoom, h = r.h * zoom;
+    var tol = 10;
+    var near = function (hx, hy) {
+      return Math.abs(p.sx - hx) <= tol && Math.abs(p.sy - hy) <= tol;
+    };
+    if (near(x, y)) return 'nw';
+    if (near(x + w, y)) return 'ne';
+    if (near(x, y + h)) return 'sw';
+    if (near(x + w, y + h)) return 'se';
+    if (Math.abs(p.sy - y) <= tol && p.sx > x && p.sx < x + w) return 'n';
+    if (Math.abs(p.sy - (y + h)) <= tol && p.sx > x && p.sx < x + w) return 's';
+    if (Math.abs(p.sx - x) <= tol && p.sy > y && p.sy < y + h) return 'w';
+    if (Math.abs(p.sx - (x + w)) <= tol && p.sy > y && p.sy < y + h) return 'e';
+    return null;
+  }
+
+  function resizeBubbleRect(baseRect, mode, dx, dy) {
+    var MIN = 30;
+    var x = baseRect.x, y = baseRect.y, w = baseRect.w, h = baseRect.h;
+    if (mode.indexOf('w') >= 0) {
+      x = baseRect.x + dx;
+      w = baseRect.w - dx;
+      if (w < MIN) {
+        x = baseRect.x + baseRect.w - MIN;
+        w = MIN;
+      }
+    }
+    if (mode.indexOf('e') >= 0) {
+      w = Math.max(MIN, baseRect.w + dx);
+    }
+    if (mode.indexOf('n') >= 0) {
+      y = baseRect.y + dy;
+      h = baseRect.h - dy;
+      if (h < MIN) {
+        y = baseRect.y + baseRect.h - MIN;
+        h = MIN;
+      }
+    }
+    if (mode.indexOf('s') >= 0) {
+      h = Math.max(MIN, baseRect.h + dy);
+    }
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function startBubbleResize(mode, p) {
+    var isPending = tool === 'bubble' && !!pendingBubble;
+    var rect = isPending ? pendingBubble : selected.rect;
+    drag = {
+      type: 'resize-bubble',
+      pending: isPending,
+      obj: isPending ? null : selected,
+      mode: mode,
+      start: { x: p.x, y: p.y },
+      rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+      moved: false
+    };
+    if (isPending) hideBubbleEditor();
+    view.style.cursor = handleCursor(mode);
+    scheduleRender();
+  }
+
+  function drawBubbleHandles(r) {
+    if (!r) return;
+    var x = panX + r.x * zoom, y = panY + r.y * zoom;
+    var w = r.w * zoom, h = r.h * zoom;
+    var pts = [
+      [x, y], [x + w / 2, y], [x + w, y],
+      [x + w, y + h / 2], [x + w, y + h],
+      [x + w / 2, y + h], [x, y + h], [x, y + h / 2]
+    ];
+    vctx.save();
+    vctx.setLineDash([]);
+    vctx.lineWidth = 1;
+    vctx.strokeStyle = 'rgba(79,140,255,0.9)';
+    vctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w), Math.max(0, h));
+    for (var i = 0; i < pts.length; i++) {
+      vctx.fillStyle = '#ffffff';
+      vctx.fillRect(pts[i][0] - 4, pts[i][1] - 4, 8, 8);
+      vctx.strokeStyle = '#2b3550';
+      vctx.strokeRect(pts[i][0] - 4.5, pts[i][1] - 4.5, 9, 9);
+    }
+    vctx.restore();
+  }
+
+  function updateNudgeUI() {
+    var pending = !!(tool === 'bubble' && pendingBubble);
+    var bubbleOk = pending || !!(selected && selected.kind === 'bubble');
+    var textOk = (pending && !!bubbleText.value.trim()) ||
+      !!(selected && (selected.kind === 'text' || (selected.kind === 'bubble' && selected.text && selected.text.trim())));
+    var any = pending || !!selected;
+    var i;
+    for (i = 0; i < bubbleNudgeButtons.length; i++) bubbleNudgeButtons[i].disabled = !bubbleOk;
+    for (i = 0; i < textNudgeButtons.length; i++) textNudgeButtons[i].disabled = !textOk;
+    bubbleCenterBtn.disabled = !bubbleOk;
+    textCenterBtn.disabled = !textOk;
+    nudgeDelete.disabled = !any;
+    nudgeHint.textContent = !any
+      ? '이동 도구(V)로 글자나 말풍선을 클릭해 선택하세요.'
+      : pending
+        ? '입력 중입니다. 말풍선과 대사를 각각 옮길 수 있습니다.'
+        : selected.kind === 'text'
+          ? '글자를 옮깁니다. 박스 바깥을 끌면 회전합니다.'
+          : '말풍선과 대사를 각각 옮길 수 있습니다.';
+    renderLayerList();
+  }
+
+  function setSelected(ob, part) {
+    selected = ob || null;
+    selPart = part || null;
+    updateNudgeUI();
+    scheduleRender();
+  }
+
+  function beginObjectDrag(hit, p) {
+    selected = hit.obj;
+    selPart = hit.part;
+    if (hit.part === 'text' && hit.obj.kind === 'bubble') {
+      drag = {
+        type: 'obj-text',
+        obj: hit.obj,
+        start: { x: p.x, y: p.y },
+        offset: { x: hit.obj.textOffset.x, y: hit.obj.textOffset.y },
+        lay: bubbleTextLayout(mctx, hit.obj.rect, hit.obj.opts, hit.obj.text),
+        moved: false
+      };
+    } else if (hit.obj.kind === 'bubble') {
+      drag = {
+        type: 'obj-move',
+        obj: hit.obj,
+        start: { x: p.x, y: p.y },
+        rect: { x: hit.obj.rect.x, y: hit.obj.rect.y },
+        moved: false
+      };
+    } else {
+      drag = {
+        type: 'obj-move',
+        obj: hit.obj,
+        start: { x: p.x, y: p.y },
+        pos: { x: hit.obj.x, y: hit.obj.y },
+        moved: false
+      };
+    }
+    view.style.cursor = 'move';
+    updateNudgeUI();
+    scheduleRender();
+  }
+
+  function clampTextOffset(offset, r, o, text) {
+    var lay = bubbleTextLayout(mctx, r, o, text);
+    var maxOx = Math.abs(r.w - lay.widest) / 2;
+    var maxOy = Math.abs(r.h - lay.totalH) / 2;
+    return { x: clamp(offset.x, -maxOx, maxOx), y: clamp(offset.y, -maxOy, maxOy) };
+  }
+
+  function nudgeBubble(dx, dy) {
+    if (tool === 'bubble' && pendingBubble) {
+      pendingBubble.x += dx;
+      pendingBubble.y += dy;
+      scheduleRender();
+      return;
+    }
+    if (!selected || selected.kind !== 'bubble') return;
+    var ob = selected;
+    ob.rect.x += dx;
+    ob.rect.y += dy;
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function nudgeDialogue(dx, dy) {
+    if (tool === 'bubble' && pendingBubble) {
+      if (!bubbleText.value.trim()) return;
+      pendingTextOffset = clampTextOffset(
+        { x: pendingTextOffset.x + dx, y: pendingTextOffset.y + dy },
+        pendingBubble, bubbleOpt, bubbleText.value
+      );
+      scheduleRender();
+      return;
+    }
+    if (!selected) return;
+    if (selected.kind === 'bubble') {
+      if (!selected.text || !selected.text.trim()) return;
+      selected.textOffset = clampTextOffset(
+        { x: selected.textOffset.x + dx, y: selected.textOffset.y + dy },
+        selected.rect, selected.opts, selected.text
+      );
+    } else {
+      var ob = selected;
+      var b = textObjectBounds(ob);
+      var offX = b.x - ob.x;
+      var maxX = base.width - offX - b.widest;
+      var maxY = base.height - b.h;
+      ob.x = clamp(ob.x + dx, Math.min(0, maxX), Math.max(0, maxX));
+      ob.y = clamp(ob.y + dy, Math.min(0, maxY), Math.max(0, maxY));
+    }
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function centerBubble() {
+    if (tool === 'bubble' && pendingBubble) {
+      pendingBubble.x = Math.max(0, (base.width - pendingBubble.w) / 2);
+      pendingBubble.y = Math.max(0, (base.height - pendingBubble.h) / 2);
+      scheduleRender();
+      return;
+    }
+    if (!selected || selected.kind !== 'bubble') return;
+    selected.rect.x = Math.max(0, (base.width - selected.rect.w) / 2);
+    selected.rect.y = Math.max(0, (base.height - selected.rect.h) / 2);
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function centerDialogue() {
+    if (tool === 'bubble' && pendingBubble) {
+      pendingTextOffset = { x: 0, y: 0 };
+      scheduleRender();
+      return;
+    }
+    if (!selected) return;
+    if (selected.kind === 'bubble') {
+      selected.textOffset = { x: 0, y: 0 };
+    } else {
+      var b = textObjectBounds(selected);
+      var offX = b.x - selected.x;
+      selected.x = (base.width - b.widest) / 2 - offX;
+      selected.y = Math.max(0, (base.height - b.h) / 2);
+    }
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function nudgeSelected(dx, dy) {
+    if (tool === 'bubble' && pendingBubble) { nudgeBubble(dx, dy); return; }
+    if (!selected) return;
+    if (selected.kind === 'text' || selPart === 'text') nudgeDialogue(dx, dy);
+    else nudgeBubble(dx, dy);
+  }
+
+  function deleteSelected() {
+    if (tool === 'bubble' && pendingBubble) {
+      pendingBubble = null;
+      pendingTextOffset = { x: 0, y: 0 };
+      bubbleText.value = '';
+      hideBubbleEditor();
+      updateBubbleButton();
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+    if (!selected) return;
+    var idx = objects.indexOf(selected);
+    if (idx < 0) return;
+    objects.splice(idx, 1);
+    setSelected(null, null);
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function layerLabel(ob) {
+    if (ob.name) return ob.name;
+    return ob.kind === 'bubble' ? '말풍선' : '글자';
+  }
+
+  function renderLayerList() {
+    layerList.innerHTML = '';
+    var base = document.createElement('div');
+    base.className = 'layer base';
+    var baseName = document.createElement('span');
+    baseName.className = 'lname';
+    baseName.textContent = '배경 (사진)';
+    base.appendChild(baseName);
+    layerList.appendChild(base);
+    for (var i = objects.length - 1; i >= 0; i--) {
+      (function (ob) {
+        var row = document.createElement('div');
+        row.className = 'layer' + (ob === selected ? ' sel' : '');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !ob.hidden;
+        cb.title = '표시';
+        cb.addEventListener('click', function (e) { e.stopPropagation(); });
+        cb.addEventListener('change', function () {
+          ob.hidden = !cb.checked;
+          if (ob.hidden && selected === ob) setSelected(null, null);
+          recompose();
+          scheduleRender();
+          commit();
+          renderLayerList();
+        });
+        var name = document.createElement('span');
+        name.className = 'lname';
+        name.textContent = layerLabel(ob);
+        var up = document.createElement('button');
+        up.type = 'button';
+        up.textContent = '▲';
+        up.title = '앞으로 (위로)';
+        up.addEventListener('click', function (e) {
+          e.stopPropagation();
+          moveLayer(ob, 1);
+        });
+        var down = document.createElement('button');
+        down.type = 'button';
+        down.textContent = '▼';
+        down.title = '뒤로 (아래로)';
+        down.addEventListener('click', function (e) {
+          e.stopPropagation();
+          moveLayer(ob, -1);
+        });
+        row.appendChild(cb);
+        row.appendChild(name);
+        row.appendChild(up);
+        row.appendChild(down);
+        row.addEventListener('click', function () {
+          selectTool('move');
+          setSelected(ob, ob.kind === 'bubble' ? 'body' : 'text');
+        });
+        layerList.appendChild(row);
+      })(objects[i]);
+    }
+  }
+
+  function moveLayer(ob, dir) {
+    var i = objects.indexOf(ob);
+    if (i < 0) return;
+    var j = i + dir;
+    if (j < 0 || j >= objects.length) return;
+    objects.splice(i, 1);
+    objects.splice(j, 0, ob);
+    recompose();
+    scheduleRender();
+    commit();
+    renderLayerList();
+  }
+
+  function updateInfo() {
+    infoEl.textContent = hasImage ? base.width + ' × ' + base.height + 'px' : '이미지 없음';
+  }
+
+  function updateZoomLabel() {
+    zoomLabel.textContent = Math.round(zoom * 100) + '%';
+  }
+
+  function updateHistoryButtons() {
+    undoBtn.disabled = !(hIndex > 0);
+    redoBtn.disabled = !(hIndex < history.length - 1);
+  }
+
+  function capture() {
+    return {
+      w: base.width,
+      h: base.height,
+      data: bctx.getImageData(0, 0, base.width, base.height),
+      filters: Object.assign({}, filters),
+      objects: cloneObjects()
+    };
+  }
+
+  function restore(s) {
+    var sizeChanged = base.width !== s.w || base.height !== s.h;
+    if (sizeChanged) {
+      base.width = s.w;
+      base.height = s.h;
+    }
+    bctx.putImageData(s.data, 0, 0);
+    filters = Object.assign({}, DEFAULT_FILTERS, s.filters);
+    objects = s.objects ? JSON.parse(JSON.stringify(s.objects)) : [];
+    selected = null;
+    selPart = null;
+    updateNudgeUI();
+    syncFilterUI();
+    doc.width = s.w;
+    doc.height = s.h;
+    crop = { x: 0, y: 0, w: s.w, h: s.h };
+    updateCropReadout();
+    updateResizeInputs();
+    updateInfo();
+    recompose();
+    if (sizeChanged) fitView(); else scheduleRender();
+    updateHistoryButtons();
+  }
+
+  function historyLimit() {
+    var bytes = base.width * base.height * 4;
+    if (!bytes) return MAX_HISTORY;
+    return Math.max(2, Math.min(MAX_HISTORY, Math.floor(150000000 / bytes)));
+  }
+
+  function commit() {
+    if (!hasImage) return;
+    history = history.slice(0, hIndex + 1);
+    history.push(capture());
+    var limit = historyLimit();
+    while (history.length > limit) history.shift();
+    hIndex = history.length - 1;
+    updateHistoryButtons();
+  }
+
+  function undo() {
+    if (hIndex <= 0) return;
+    hIndex--;
+    restore(history[hIndex]);
+  }
+
+  function redo() {
+    if (hIndex >= history.length - 1) return;
+    hIndex++;
+    restore(history[hIndex]);
+  }
+
+  function updateCropReadout() {
+    cropReadout.textContent = Math.round(crop.w) + ' × ' + Math.round(crop.h) + ' px';
+  }
+
+  function updateResizeInputs() {
+    if (!hasImage) return;
+    resizeW.value = base.width;
+    resizeH.value = base.height;
+  }
+
+  function fitView() {
+    if (!hasImage) return;
+    var pad = 48;
+    var z = Math.min((viewW - pad * 2) / base.width, (viewH - pad * 2) / base.height, 1);
+    zoom = clamp(z, 0.02, 16);
+    panX = (viewW - base.width * zoom) / 2;
+    panY = (viewH - base.height * zoom) / 2;
+    updateZoomLabel();
+    render();
+  }
+
+  function zoomBy(factor, ax, ay) {
+    if (!hasImage) return;
+    if (ax == null) { ax = viewW / 2; ay = viewH / 2; }
+    var dx = (ax - panX) / zoom;
+    var dy = (ay - panY) / zoom;
+    zoom = clamp(zoom * factor, 0.05, 16);
+    panX = ax - dx * zoom;
+    panY = ay - dy * zoom;
+    updateZoomLabel();
+    scheduleRender();
+  }
+
+  function setBase(canvas) {
+    base.width = canvas.width;
+    base.height = canvas.height;
+    bctx.clearRect(0, 0, base.width, base.height);
+    bctx.drawImage(canvas, 0, 0);
+    doc.width = base.width;
+    doc.height = base.height;
+    crop = { x: 0, y: 0, w: base.width, h: base.height };
+    updateCropReadout();
+    updateResizeInputs();
+    updateInfo();
+    recompose();
+    scheduleRender();
+  }
+
+  function openFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      base.width = img.naturalWidth;
+      base.height = img.naturalHeight;
+      bctx.clearRect(0, 0, base.width, base.height);
+      bctx.drawImage(img, 0, 0);
+      filters = Object.assign({}, DEFAULT_FILTERS);
+      syncFilterUI();
+      doc.width = base.width;
+      doc.height = base.height;
+      crop = { x: 0, y: 0, w: base.width, h: base.height };
+      history = [];
+      hIndex = -1;
+      hasImage = true;
+      objects = [];
+      layerSeq = { bubble: 0, text: 0 };
+      selected = null;
+      selPart = null;
+      pendingText = null;
+      pendingBubble = null;
+      pendingTextOffset = { x: 0, y: 0 };
+      bubbleText.value = '';
+      hideBubbleEditor();
+      updateBubbleButton();
+      updateNudgeUI();
+      updateTextButton();
+      emptyEl.classList.add('hidden');
+      var name = file.name || 'image';
+      exportName.value = name.replace(/\.[^.]+$/, '');
+      updateCropReadout();
+      updateResizeInputs();
+      updateInfo();
+      recompose();
+      fitView();
+      commit();
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      alert('이미지를 열 수 없습니다.');
+    };
+    img.src = url;
+  }
+
+  function syncFilterUI() {
+    ['brightness', 'contrast', 'saturation', 'hue', 'blur'].forEach(function (k) {
+      var el = document.getElementById(k);
+      el.value = filters[k];
+      var unit = k === 'hue' ? '°' : k === 'blur' ? 'px' : '%';
+      document.getElementById(k + 'Val').textContent = filters[k] + unit;
+    });
+  }
+
+  function applyPreset(name) {
+    if (!hasImage) return;
+    filters = Object.assign({}, DEFAULT_FILTERS);
+    if (name === 'mono') { filters.grayscale = 100; }
+    if (name === 'sepia') { filters.sepia = 100; }
+    if (name === 'invert') { filters.invert = 100; }
+    if (name === 'contrast') { filters.contrast = 130; filters.saturation = 115; }
+    if (name === 'bright') { filters.brightness = 112; filters.contrast = 95; }
+    if (name === 'vivid') { filters.saturation = 150; filters.contrast = 112; }
+    syncFilterUI();
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function selectTool(name) {
+    tool = name;
+    document.body.setAttribute('data-tool', name);
+    var btns = document.querySelectorAll('.tool');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-tool') === name);
+    }
+    if (name !== 'text') {
+      pendingText = null;
+      updateTextButton();
+    }
+    if (name !== 'bubble') {
+      pendingBubble = null;
+      pendingTextOffset = { x: 0, y: 0 };
+      updateBubbleButton();
+    }
+    hideBubbleEditor();
+    updateNudgeUI();
+    if (name === 'crop' && hasImage) {
+      updateCropReadout();
+    }
+    updateCursor();
+    scheduleRender();
+  }
+
+  function updateCursor() {
+    var map = { move: 'grab', crop: 'crosshair', brush: 'none', eraser: 'none', text: 'text' };
+    view.style.cursor = spaceHeld ? 'grab' : (map[tool] || 'default');
+  }
+
+  function updateTextButton() {
+    textCommitBtn.disabled = !(pendingText && textContent.value.trim().length > 0);
+  }
+
+  function beginStroke(p) {
+    bctx.save();
+    bctx.globalAlpha = brush.opacity;
+    bctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    bctx.strokeStyle = brush.color;
+    bctx.fillStyle = brush.color;
+    bctx.lineWidth = brush.size;
+    bctx.lineCap = 'round';
+    bctx.lineJoin = 'round';
+    bctx.beginPath();
+    bctx.arc(p.x, p.y, Math.max(0.5, brush.size / 2), 0, Math.PI * 2);
+    bctx.fill();
+    bctx.beginPath();
+    bctx.moveTo(p.x, p.y);
+    stroke = { last: p };
+    recompose();
+    scheduleRender();
+  }
+
+  function continueStroke(p) {
+    if (!stroke) return;
+    bctx.beginPath();
+    bctx.moveTo(stroke.last.x, stroke.last.y);
+    bctx.lineTo(p.x, p.y);
+    bctx.stroke();
+    stroke.last = p;
+    recompose();
+    scheduleRender();
+  }
+
+  function endStroke() {
+    if (!stroke) return;
+    bctx.restore();
+    stroke = null;
+    commit();
+  }
+
+  function hitCropHandle(p) {
+    var s = cropScreen();
+    var tol = 10;
+    var near = function (x, y) {
+      return Math.abs(p.sx - x) <= tol && Math.abs(p.sy - y) <= tol;
+    };
+    if (near(s.x, s.y)) return 'nw';
+    if (near(s.x + s.w, s.y)) return 'ne';
+    if (near(s.x, s.y + s.h)) return 'sw';
+    if (near(s.x + s.w, s.y + s.h)) return 'se';
+    var withinX = p.sx >= s.x - tol && p.sx <= s.x + s.w + tol;
+    var withinY = p.sy >= s.y - tol && p.sy <= s.y + s.h + tol;
+    if (withinY && near(s.x, s.y + s.h / 2)) return 'w';
+    if (withinY && near(s.x + s.w, s.y + s.h / 2)) return 'e';
+    if (withinX && near(s.x + s.w / 2, s.y)) return 'n';
+    if (withinX && near(s.x + s.w / 2, s.y + s.h)) return 's';
+    if (p.sx > s.x && p.sx < s.x + s.w && p.sy > s.y && p.sy < s.y + s.h) return 'inside';
+    return null;
+  }
+
+  function startCropDrag(p) {
+    if (!insideDoc(p)) return;
+    var mode = hitCropHandle(p);
+    var full = crop.w >= base.width - 1 && crop.h >= base.height - 1;
+    if (!mode) {
+      if (!full) return;
+      mode = 'new';
+    } else if (mode === 'inside') {
+      mode = full ? 'new' : 'move';
+    }
+    cropDrag = { mode: mode, start: { x: p.x, y: p.y }, startRect: { x: crop.x, y: crop.y, w: crop.w, h: crop.h } };
+    if (mode === 'new') crop = { x: p.x, y: p.y, w: 0, h: 0 };
+    scheduleRender();
+  }
+
+  function moveCrop(p) {
+    if (!cropDrag) return;
+    var d = cropDrag;
+    var s = d.startRect;
+    var dx = p.x - d.start.x;
+    var dy = p.y - d.start.y;
+    var x = s.x, y = s.y, w = s.w, h = s.h;
+
+    if (d.mode === 'new') {
+      x = Math.min(d.start.x, p.x);
+      y = Math.min(d.start.y, p.y);
+      w = Math.abs(p.x - d.start.x);
+      h = Math.abs(p.y - d.start.y);
+    } else if (d.mode === 'move') {
+      x = s.x + dx;
+      y = s.y + dy;
+      w = s.w;
+      h = s.h;
+    } else {
+      if (d.mode.indexOf('w') >= 0) { x = s.x + dx; w = s.w - dx; }
+      if (d.mode.indexOf('e') >= 0) { w = s.w + dx; }
+      if (d.mode.indexOf('n') >= 0) { y = s.y + dy; h = s.h - dy; }
+      if (d.mode.indexOf('s') >= 0) { h = s.h + dy; }
+      if (w < 0) { x += w; w = -w; }
+      if (h < 0) { y += h; h = -h; }
+    }
+
+    if (d.mode === 'move') {
+      x = clamp(x, 0, Math.max(0, base.width - w));
+      y = clamp(y, 0, Math.max(0, base.height - h));
+    }
+    x = clamp(x, 0, base.width);
+    y = clamp(y, 0, base.height);
+    w = clamp(w, 0, base.width - x);
+    h = clamp(h, 0, base.height - y);
+
+    crop = { x: x, y: y, w: w, h: h };
+    updateCropReadout();
+  }
+
+  function applyCrop() {
+    if (!hasImage) return;
+    var x = Math.round(crop.x), y = Math.round(crop.y);
+    var w = Math.round(crop.w), h = Math.round(crop.h);
+    if (w < 2 || h < 2) return;
+    flattenObjects();
+    var c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    c.getContext('2d').drawImage(base, x, y, w, h, 0, 0, w, h);
+    setBase(c);
+    commit();
+    fitView();
+  }
+
+  function rotate(dir) {
+    if (!hasImage) return;
+    flattenObjects();
+    var c = document.createElement('canvas');
+    c.width = base.height;
+    c.height = base.width;
+    var x = c.getContext('2d');
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate((dir * Math.PI) / 2);
+    x.drawImage(base, -base.width / 2, -base.height / 2);
+    setBase(c);
+    commit();
+    fitView();
+  }
+
+  function flip(horizontal) {
+    if (!hasImage) return;
+    flattenObjects();
+    var c = document.createElement('canvas');
+    c.width = base.width;
+    c.height = base.height;
+    var x = c.getContext('2d');
+    if (horizontal) { x.translate(c.width, 0); x.scale(-1, 1); }
+    else { x.translate(0, c.height); x.scale(1, -1); }
+    x.drawImage(base, 0, 0);
+    setBase(c);
+    commit();
+  }
+
+  function applyResize() {
+    if (!hasImage) return;
+    var w = Math.max(1, Math.min(12000, parseInt(resizeW.value, 10) || base.width));
+    var h = Math.max(1, Math.min(12000, parseInt(resizeH.value, 10) || base.height));
+    if (w === base.width && h === base.height) return;
+    flattenObjects();
+    var c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    var x = c.getContext('2d');
+    x.imageSmoothingEnabled = true;
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(base, 0, 0, w, h);
+    setBase(c);
+    commit();
+    fitView();
+  }
+
+  function commitText() {
+    if (!hasImage || !pendingText) return;
+    var text = textContent.value;
+    if (!text.trim()) return;
+    var ob = {
+      kind: 'text',
+      name: '글자 ' + (++layerSeq.text),
+      x: pendingText.x,
+      y: pendingText.y,
+      text: text,
+      opts: Object.assign({}, textOpt)
+    };
+    objects.push(ob);
+    setSelected(ob, 'text');
+    pendingText = null;
+    updateTextButton();
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function updateBubbleButton() {
+    bubbleCommitBtn.disabled = !(pendingBubble && pendingBubble.w >= 10 && pendingBubble.h >= 10);
+  }
+
+  function defaultBubbleAt(p) {
+    var w = Math.min(base.width, Math.max(160, base.width * 0.45));
+    var h = Math.min(base.height, Math.max(100, w * 0.5));
+    var x = clamp(p.x - w / 2, 0, Math.max(0, base.width - w));
+    var y = clamp(p.y - h / 2, 0, Math.max(0, base.height - h));
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function commitBubble() {
+    if (!hasImage || !pendingBubble) return;
+    if (pendingBubble.w < 10 || pendingBubble.h < 10) return;
+    var ob = {
+      kind: 'bubble',
+      name: '말풍선 ' + (++layerSeq.bubble),
+      rect: { x: pendingBubble.x, y: pendingBubble.y, w: pendingBubble.w, h: pendingBubble.h },
+      opts: Object.assign({}, bubbleOpt),
+      text: bubbleText.value,
+      textOffset: clampTextOffset(pendingTextOffset, pendingBubble, bubbleOpt, bubbleText.value)
+    };
+    objects.push(ob);
+    pendingBubble = null;
+    pendingTextOffset = { x: 0, y: 0 };
+    bubbleText.value = '';
+    hideBubbleEditor();
+    updateBubbleButton();
+    setSelected(ob, ob.text.trim() ? 'text' : 'body');
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function saveAs() {
+    if (!hasImage) return;
+    var current = (exportName.value.trim() || 'edit').replace(/\.(png|jpe?g|webp)$/i, '');
+    var name = prompt('저장할 파일 이름을 입력하세요.', current);
+    if (name === null) return;
+    name = name.trim();
+    if (!name) return;
+    exportName.value = name.replace(/\.(png|jpe?g|webp)$/i, '');
+    download();
+  }
+
+  function download() {
+    if (!hasImage) return;
+    recompose();
+    var format = formatSel.value;
+    var q = parseInt(quality.value, 10) / 100;
+    var src = doc;
+    if (format !== 'image/png') {
+      var c = document.createElement('canvas');
+      c.width = doc.width;
+      c.height = doc.height;
+      var x = c.getContext('2d');
+      x.fillStyle = '#ffffff';
+      x.fillRect(0, 0, c.width, c.height);
+      x.drawImage(doc, 0, 0);
+      src = c;
+    }
+    src.toBlob(function (blob) {
+      if (!blob) { alert('저장에 실패했습니다.'); return; }
+      var ext = format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
+      var a = document.createElement('a');
+      var url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = (exportName.value.trim() || 'edit') + '.' + ext;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }, format, q);
+  }
+
+  view.addEventListener('pointerdown', function (e) {
+    if (!hasImage) return;
+    if (e.button === 2) return;
+    try { view.setPointerCapture(e.pointerId); } catch (err) {}
+    var p = docPoint(e);
+
+    if (e.button === 1 || spaceHeld) {
+      e.preventDefault();
+      drag = { type: 'pan', sx: e.clientX, sy: e.clientY, panX: panX, panY: panY };
+      view.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (tool === 'move' || tool === 'bubble') {
+      var handle = hitBubbleHandle(p);
+      if (handle) {
+        startBubbleResize(handle, p);
+        return;
+      }
+    }
+
+    if (tool === 'move') {
+      if (selected && selected.kind === 'text' && !selected.hidden &&
+          (hitRotationHandle(selected, p) || hitRotationRing(selected, p))) {
+        startTextRotate(selected, p);
+        return;
+      }
+      var hit = hitTestObjects(p);
+      if (hit) {
+        beginObjectDrag(hit, p);
+        return;
+      }
+      setSelected(null, null);
+      drag = { type: 'pan', sx: e.clientX, sy: e.clientY, panX: panX, panY: panY };
+      view.style.cursor = 'grabbing';
+      return;
+    }
+
+    if ((tool === 'text' || tool === 'bubble') && !pendingText && !pendingBubble) {
+      var preHit = hitTestObjects(p);
+      if (preHit) {
+        beginObjectDrag(preHit, p);
+        return;
+      }
+    }
+
+    if (tool === 'crop') {
+      startCropDrag(p);
+      return;
+    }
+
+    if (tool === 'brush' || tool === 'eraser') {
+      if (!insideDoc(p)) return;
+      drag = { type: 'stroke' };
+      beginStroke(p);
+      return;
+    }
+
+    if (tool === 'text') {
+      if (!insideDoc(p)) return;
+      setSelected(null, null);
+      pendingText = { x: p.x, y: p.y };
+      updateTextButton();
+      textContent.focus();
+      scheduleRender();
+      return;
+    }
+
+    if (tool === 'bubble') {
+      if (!insideDoc(p)) return;
+      if (pendingBubble && pendingBubble.w > 0 &&
+          p.x >= pendingBubble.x && p.x <= pendingBubble.x + pendingBubble.w &&
+          p.y >= pendingBubble.y && p.y <= pendingBubble.y + pendingBubble.h) {
+        drag = {
+          type: 'bubbleMove',
+          start: { x: p.x, y: p.y },
+          rect: { x: pendingBubble.x, y: pendingBubble.y, w: pendingBubble.w, h: pendingBubble.h },
+          moved: false
+        };
+        hideBubbleEditor();
+        return;
+      }
+      drag = { type: 'bubble', start: { x: p.x, y: p.y } };
+      pendingBubble = { x: p.x, y: p.y, w: 0, h: 0 };
+      pendingTextOffset = { x: 0, y: 0 };
+      setSelected(null, null);
+      updateBubbleButton();
+      hideBubbleEditor();
+      scheduleRender();
+    }
+  });
+
+  view.addEventListener('pointermove', function (e) {
+    var p = docPoint(e);
+    hover = { sx: p.sx, sy: p.sy };
+
+    if (drag && drag.type === 'pan') {
+      panX = drag.panX + (e.clientX - drag.sx);
+      panY = drag.panY + (e.clientY - drag.sy);
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'resize-bubble') {
+      var nr = resizeBubbleRect(drag.rect, drag.mode, p.x - drag.start.x, p.y - drag.start.y);
+      if (Math.abs(p.x - drag.start.x) > 1 || Math.abs(p.y - drag.start.y) > 1) drag.moved = true;
+      if (drag.pending) {
+        pendingBubble = nr;
+        pendingTextOffset = clampTextOffset(pendingTextOffset, nr, bubbleOpt, bubbleText.value);
+      } else {
+        drag.obj.rect = nr;
+        if (drag.obj.textOffset) {
+          var lay2 = bubbleTextLayout(mctx, nr, drag.obj.opts, drag.obj.text);
+          var mox = Math.abs(nr.w - lay2.widest) / 2;
+          var moy = Math.abs(nr.h - lay2.totalH) / 2;
+          drag.obj.textOffset.x = clamp(drag.obj.textOffset.x, -mox, mox);
+          drag.obj.textOffset.y = clamp(drag.obj.textOffset.y, -moy, moy);
+        }
+        recompose();
+      }
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'rotate-text') {
+      var rAng = Math.atan2(p.y - drag.center.y, p.x - drag.center.x);
+      var rRot = drag.rot0 + (rAng - drag.startAngle);
+      var snapStep = Math.PI / 12;
+      if (e.shiftKey) {
+        rRot = Math.round(rRot / snapStep) * snapStep;
+      } else {
+        var rNear = Math.round(rRot / snapStep) * snapStep;
+        if (Math.abs(rRot - rNear) < 0.03) rRot = rNear;
+      }
+      drag.obj.rot = rRot;
+      drag.moved = true;
+      recompose();
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'obj-move') {
+      var ob = drag.obj;
+      var dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+      var snap = 8 / zoom;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) drag.moved = true;
+      if (ob.kind === 'bubble') {
+        var mx = drag.rect.x + dx, my = drag.rect.y + dy;
+        var ccx = mx + ob.rect.w / 2, ccy = my + ob.rect.h / 2;
+        var bsnap = 8 / zoom;
+        if (Math.abs(ccx - base.width / 2) <= bsnap) mx = base.width / 2 - ob.rect.w / 2;
+        if (Math.abs(ccy - base.height / 2) <= bsnap) my = base.height / 2 - ob.rect.h / 2;
+        ob.rect.x = mx;
+        ob.rect.y = my;
+      } else {
+        var tb = textObjectBounds(ob);
+        var offX = tb.x - ob.x;
+        var tx = drag.pos.x + dx, ty = drag.pos.y + dy;
+        var tcx = tx + offX + tb.widest / 2;
+        var tcy = ty + tb.h / 2;
+        if (Math.abs(tcx - base.width / 2) <= snap) tx = base.width / 2 - offX - tb.widest / 2;
+        if (Math.abs(tcy - base.height / 2) <= snap) ty = base.height / 2 - tb.h / 2;
+        var maxTX = base.width - offX - tb.widest;
+        var maxTY = base.height - tb.h;
+        ob.x = clamp(tx, Math.min(0, maxTX), Math.max(0, maxTX));
+        ob.y = clamp(ty, Math.min(0, maxTY), Math.max(0, maxTY));
+      }
+      recompose();
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'obj-text') {
+      var ob2 = drag.obj;
+      var adx = p.x - drag.start.x, ady = p.y - drag.start.y;
+      var snap2 = 8 / zoom;
+      if (Math.abs(adx) > 1 || Math.abs(ady) > 1) drag.moved = true;
+      var nox = drag.offset.x + adx, noy = drag.offset.y + ady;
+      if (Math.abs(nox) <= snap2) nox = 0;
+      if (Math.abs(noy) <= snap2) noy = 0;
+      var maxOx = Math.abs(ob2.rect.w - drag.lay.widest) / 2;
+      var maxOy = Math.abs(ob2.rect.h - drag.lay.totalH) / 2;
+      ob2.textOffset = {
+        x: clamp(nox, -maxOx, maxOx),
+        y: clamp(noy, -maxOy, maxOy)
+      };
+      recompose();
+      scheduleRender();
+      return;
+    }
+    if (cropDrag) {
+      moveCrop(p);
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'bubble') {
+      var s = drag.start;
+      var bx = Math.min(s.x, p.x), by = Math.min(s.y, p.y);
+      var bw = Math.abs(p.x - s.x), bh = Math.abs(p.y - s.y);
+      pendingBubble = { x: bx, y: by, w: bw, h: bh };
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'bubbleMove') {
+      var rd = drag.rect;
+      pendingBubble = {
+        x: rd.x + (p.x - drag.start.x),
+        y: rd.y + (p.y - drag.start.y),
+        w: rd.w,
+        h: rd.h
+      };
+      if (Math.abs(p.x - drag.start.x) > 2 || Math.abs(p.y - drag.start.y) > 2) drag.moved = true;
+      scheduleRender();
+      return;
+    }
+    if (drag && drag.type === 'stroke' && stroke) {
+      continueStroke(p);
+      return;
+    }
+    if ((tool === 'move' || tool === 'bubble') && !drag && !spaceHeld) {
+      var hh = hitBubbleHandle(p);
+      if (hh) {
+        view.style.cursor = handleCursor(hh);
+      } else if (tool === 'move' && selected && selected.kind === 'text' &&
+          (hitRotationHandle(selected, p) || hitRotationRing(selected, p))) {
+        view.style.cursor = 'grab';
+      } else if (tool === 'move') {
+        view.style.cursor = hitTestObjects(p) ? 'move' : 'grab';
+      }
+    }
+    if (tool === 'brush' || tool === 'eraser') scheduleRender();
+  });
+
+  function endPointer(e) {
+    if (drag && drag.type === 'stroke') endStroke();
+    if (drag && drag.type === 'bubble') {
+      if (!pendingBubble || pendingBubble.w < 20 || pendingBubble.h < 20) {
+        pendingBubble = defaultBubbleAt(drag.start);
+      }
+      updateBubbleButton();
+      updateNudgeUI();
+      showBubbleEditor(true);
+      scheduleRender();
+    }
+    if (drag && drag.type === 'bubbleMove') {
+      showBubbleEditor(!drag.moved);
+      scheduleRender();
+    }
+    if (drag && drag.type === 'resize-bubble') {
+      if (drag.pending) showBubbleEditor(true);
+      else if (drag.moved) commit();
+      scheduleRender();
+    }
+    if (drag && (drag.type === 'obj-move' || drag.type === 'obj-text') && drag.moved) {
+      commit();
+    }
+    if (drag && drag.type === 'rotate-text' && drag.moved) {
+      commit();
+    }
+    drag = null;
+    cropDrag = null;
+    updateCursor();
+  }
+
+  view.addEventListener('pointerup', endPointer);
+  view.addEventListener('pointercancel', endPointer);
+  view.addEventListener('pointerleave', function () {
+    hover = null;
+    if (tool === 'brush' || tool === 'eraser') scheduleRender();
+  });
+  view.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  view.addEventListener('wheel', function (e) {
+    if (!hasImage) return;
+    e.preventDefault();
+    var r = view.getBoundingClientRect();
+    var factor = Math.exp(-e.deltaY * 0.0015);
+    zoomBy(factor, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  document.querySelectorAll('.tool').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      selectTool(btn.getAttribute('data-tool'));
+    });
+  });
+
+  document.getElementById('openBtn').addEventListener('click', function () { fileInput.click(); });
+  document.getElementById('emptyOpen').addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (f) openFile(f);
+    fileInput.value = '';
+  });
+
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
+
+  document.getElementById('zoomInBtn').addEventListener('click', function () { zoomBy(1.25); });
+  document.getElementById('zoomOutBtn').addEventListener('click', function () { zoomBy(1 / 1.25); });
+  document.getElementById('fitBtn').addEventListener('click', fitView);
+
+  stage.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    stage.classList.add('dragover');
+  });
+  stage.addEventListener('dragleave', function () { stage.classList.remove('dragover'); });
+  stage.addEventListener('drop', function (e) {
+    e.preventDefault();
+    stage.classList.remove('dragover');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) openFile(f);
+  });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  document.addEventListener('paste', function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image/') === 0) {
+        var f = items[i].getAsFile();
+        if (f) { openFile(f); break; }
+      }
+    }
+  });
+
+  ['brightness', 'contrast', 'saturation', 'hue', 'blur'].forEach(function (k) {
+    var el = document.getElementById(k);
+    var val = document.getElementById(k + 'Val');
+    el.addEventListener('input', function () {
+      filters[k] = parseInt(el.value, 10);
+      var unit = k === 'hue' ? '°' : k === 'blur' ? 'px' : '%';
+      val.textContent = filters[k] + unit;
+      if (hasImage) { recompose(); scheduleRender(); }
+    });
+    el.addEventListener('change', function () {
+      if (hasImage) commit();
+    });
+  });
+
+  document.getElementById('filterReset').addEventListener('click', function () {
+    if (!hasImage) return;
+    filters = Object.assign({}, DEFAULT_FILTERS);
+    syncFilterUI();
+    recompose();
+    scheduleRender();
+    commit();
+  });
+
+  document.querySelectorAll('#presets .chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      applyPreset(chip.getAttribute('data-preset'));
+    });
+  });
+
+  brushSize.addEventListener('input', function () {
+    brush.size = parseInt(brushSize.value, 10);
+    document.getElementById('brushSizeVal').textContent = brush.size;
+    scheduleRender();
+  });
+  brushOpacity.addEventListener('input', function () {
+    brush.opacity = parseInt(brushOpacity.value, 10) / 100;
+    document.getElementById('brushOpacityVal').textContent = brushOpacity.value;
+  });
+  brushColor.addEventListener('input', function () {
+    brush.color = brushColor.value;
+  });
+
+  textContent.addEventListener('input', function () {
+    updateTextButton();
+    scheduleRender();
+  });
+  textFamily.addEventListener('change', function () {
+    textOpt.family = textFamily.value;
+    scheduleRender();
+  });
+  textSize.addEventListener('input', function () {
+    textOpt.size = parseInt(textSize.value, 10);
+    document.getElementById('textSizeVal').textContent = textOpt.size;
+    scheduleRender();
+  });
+  textColor.addEventListener('input', function () {
+    textOpt.color = textColor.value;
+    scheduleRender();
+  });
+  textBold.addEventListener('change', function () {
+    textOpt.bold = textBold.checked;
+    scheduleRender();
+  });
+  textAlign.addEventListener('change', function () {
+    textOpt.align = textAlign.value;
+    scheduleRender();
+  });
+  textOutline.addEventListener('change', function () {
+    textOpt.outline = textOutline.checked;
+    scheduleRender();
+  });
+  textOutlineColor.addEventListener('input', function () {
+    textOpt.outlineColor = textOutlineColor.value;
+    scheduleRender();
+  });
+  textOutlineWidth.addEventListener('input', function () {
+    textOpt.outlineWidth = parseInt(textOutlineWidth.value, 10);
+    document.getElementById('textOutlineWidthVal').textContent = textOpt.outlineWidth;
+    scheduleRender();
+  });
+  textCommitBtn.addEventListener('click', commitText);
+
+  document.querySelectorAll('.sym').forEach(function (btn) {
+    btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-target') === 'bubble' ? bubbleText : textContent;
+      insertSymbol(target, btn.getAttribute('data-sym'));
+    });
+  });
+
+  bubbleText.addEventListener('input', function () {
+    updateNudgeUI();
+    scheduleRender();
+  });
+  bubbleShape.addEventListener('change', function () {
+    bubbleOpt.shape = bubbleShape.value;
+    scheduleRender();
+  });
+  bubbleTail.addEventListener('change', function () {
+    bubbleOpt.tail = bubbleTail.value;
+    scheduleRender();
+  });
+  bubbleWrap.addEventListener('change', function () {
+    bubbleOpt.wrap = bubbleWrap.checked;
+    scheduleRender();
+  });
+  bubbleFamily.addEventListener('change', function () {
+    bubbleOpt.family = bubbleFamily.value;
+    scheduleRender();
+  });
+  bubbleSize.addEventListener('input', function () {
+    bubbleOpt.size = parseInt(bubbleSize.value, 10);
+    document.getElementById('bubbleSizeVal').textContent = bubbleOpt.size;
+    scheduleRender();
+  });
+  bubbleTextColor.addEventListener('input', function () {
+    bubbleOpt.color = bubbleTextColor.value;
+    scheduleRender();
+  });
+  bubbleBold.addEventListener('change', function () {
+    bubbleOpt.bold = bubbleBold.checked;
+    scheduleRender();
+  });
+  bubbleFill.addEventListener('input', function () {
+    bubbleOpt.fill = bubbleFill.value;
+    scheduleRender();
+  });
+  bubbleOutline.addEventListener('change', function () {
+    bubbleOpt.outline = bubbleOutline.checked;
+    scheduleRender();
+  });
+  bubbleOutlineColor.addEventListener('input', function () {
+    bubbleOpt.outlineColor = bubbleOutlineColor.value;
+    scheduleRender();
+  });
+  bubbleStroke.addEventListener('input', function () {
+    bubbleOpt.stroke = bubbleStroke.value;
+    scheduleRender();
+  });
+  bubbleStrokeWidth.addEventListener('input', function () {
+    bubbleOpt.strokeWidth = parseInt(bubbleStrokeWidth.value, 10);
+    document.getElementById('bubbleStrokeWidthVal').textContent = bubbleOpt.strokeWidth;
+    scheduleRender();
+  });
+  bubbleCommitBtn.addEventListener('click', commitBubble);
+  document.getElementById('bubbleCancel').addEventListener('click', function () {
+    pendingBubble = null;
+    pendingTextOffset = { x: 0, y: 0 };
+    bubbleText.value = '';
+    hideBubbleEditor();
+    updateBubbleButton();
+    updateNudgeUI();
+    scheduleRender();
+  });
+  bubbleInlineClose.addEventListener('click', function () {
+    hideBubbleEditor();
+  });
+  bubbleText.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      commitBubble();
+    }
+  });
+  bubbleShadow.addEventListener('change', function () {
+    bubbleOpt.shadow = bubbleShadow.checked;
+    scheduleRender();
+  });
+  textContent.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      commitText();
+    }
+  });
+
+  document.getElementById('cropApply').addEventListener('click', applyCrop);
+  document.getElementById('cropReset').addEventListener('click', function () {
+    if (!hasImage) return;
+    crop = { x: 0, y: 0, w: base.width, h: base.height };
+    updateCropReadout();
+    scheduleRender();
+  });
+
+  document.getElementById('rotL').addEventListener('click', function () { rotate(-1); });
+  document.getElementById('rotR').addEventListener('click', function () { rotate(1); });
+  document.getElementById('flipH').addEventListener('click', function () { flip(true); });
+  document.getElementById('flipV').addEventListener('click', function () { flip(false); });
+  document.getElementById('resizeApply').addEventListener('click', applyResize);
+
+  var nudgeDirs = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  bubbleNudgeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var d = nudgeDirs[btn.getAttribute('data-nudge-bubble')];
+      if (d) nudgeBubble(d[0], d[1]);
+    });
+  });
+  textNudgeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var d = nudgeDirs[btn.getAttribute('data-nudge-text')];
+      if (d) nudgeDialogue(d[0], d[1]);
+    });
+  });
+  bubbleCenterBtn.addEventListener('click', centerBubble);
+  textCenterBtn.addEventListener('click', centerDialogue);
+  nudgeDelete.addEventListener('click', deleteSelected);
+  bubbleNudgeButtons.concat(textNudgeButtons, [bubbleCenterBtn, textCenterBtn, nudgeDelete]).forEach(function (btn) {
+    btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  });
+
+  resizeW.addEventListener('input', function () {
+    if (!hasImage || !lockRatio.checked) return;
+    var ratio = base.width / base.height;
+    var w = parseInt(resizeW.value, 10);
+    if (w > 0) resizeH.value = Math.max(1, Math.round(w / ratio));
+  });
+  resizeH.addEventListener('input', function () {
+    if (!hasImage || !lockRatio.checked) return;
+    var ratio = base.width / base.height;
+    var h = parseInt(resizeH.value, 10);
+    if (h > 0) resizeW.value = Math.max(1, Math.round(h * ratio));
+  });
+
+  formatSel.addEventListener('change', function () {
+    qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  });
+  quality.addEventListener('input', function () {
+    qualityVal.textContent = quality.value;
+  });
+  document.getElementById('saveBtn').addEventListener('click', download);
+  document.getElementById('downloadBtn').addEventListener('click', download);
+  document.getElementById('saveAsBtn').addEventListener('click', saveAs);
+
+  window.addEventListener('keydown', function (e) {
+    var t = e.target;
+    var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+
+    if (e.code === 'Space' && !typing) {
+      if (!spaceHeld) { spaceHeld = true; updateCursor(); }
+      e.preventDefault();
+      return;
+    }
+
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === 'z' && !typing) {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'y' && !typing) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+    if (mod && e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveAs();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      download();
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      var symMap = { Digit1: '♥', Digit2: '♡', Digit3: '★', Digit4: '☆', Digit5: '♪', Digit6: '…', Digit7: 'ㅋㅋ', Digit8: 'ㅠㅠ' };
+      var sym = symMap[e.code];
+      if (sym) {
+        var el = document.activeElement;
+        var symTarget = (el === textContent || el === bubbleText) ? el
+          : (!typing && tool === 'bubble' && pendingBubble) ? bubbleText
+            : (!typing && tool === 'text') ? textContent
+              : null;
+        if (symTarget) {
+          e.preventDefault();
+          insertSymbol(symTarget, sym);
+          return;
+        }
+      }
+    }
+    if (typing) return;
+
+    if (e.key === 'Escape') {
+      pendingText = null;
+      updateTextButton();
+      if (pendingBubble) {
+        pendingBubble = null;
+        pendingTextOffset = { x: 0, y: 0 };
+        bubbleText.value = '';
+        hideBubbleEditor();
+        updateBubbleButton();
+      }
+      selected = null;
+      selPart = null;
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && (selected || (tool === 'bubble' && pendingBubble))) {
+      e.preventDefault();
+      deleteSelected();
+      return;
+    }
+    var canNudge = !!selected || (tool === 'bubble' && !!pendingBubble);
+    var step = e.shiftKey ? 10 : 1;
+    if (canNudge && e.key === 'ArrowUp') { e.preventDefault(); nudgeSelected(0, -step); return; }
+    if (canNudge && e.key === 'ArrowDown') { e.preventDefault(); nudgeSelected(0, step); return; }
+    if (canNudge && e.key === 'ArrowLeft') { e.preventDefault(); nudgeSelected(-step, 0); return; }
+    if (canNudge && e.key === 'ArrowRight') { e.preventDefault(); nudgeSelected(step, 0); return; }
+    if (e.key === '+' || e.key === '=') { zoomBy(1.25); return; }
+    if (e.key === '-') { zoomBy(1 / 1.25); return; }
+    if (e.key === '0') { fitView(); return; }
+    var map = { v: 'move', c: 'crop', b: 'brush', e: 'eraser', t: 'text', s: 'bubble' };
+    var k = e.key.toLowerCase();
+    if (map[k]) selectTool(map[k]);
+  });
+
+  window.addEventListener('keyup', function (e) {
+    if (e.code === 'Space') {
+      spaceHeld = false;
+      updateCursor();
+    }
+  });
+
+  window.addEventListener('resize', resizeView);
+
+  makeChecker();
+  selectTool('move');
+  updateInfo();
+  updateTextButton();
+  updateNudgeUI();
+  syncFilterUI();
+  qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  resizeView();
+
+  if (document.fonts && document.fonts.load) {
+    ['Jua', 'Nanum Pen Script', 'Gaegu', 'Black Han Sans', 'Do Hyeon', 'Gugi', 'Cute Font'].forEach(function (f) {
+      document.fonts.load('32px "' + f + '"').catch(function () {});
+    });
+    document.fonts.ready.then(function () {
+      if (hasImage) { recompose(); scheduleRender(); }
+    });
+  }
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { resizeView(); }).observe(stage);
+  }
+})();
+</script>
+</body>
+</html>
