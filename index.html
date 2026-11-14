@@ -188,6 +188,13 @@
   body[data-tool="eraser"] .opt-paint,
   body[data-tool="text"] .opt-text{display:block}
   body[data-tool="bubble"] .opt-bubble{display:block}
+  body[data-tool="bar"] .opt-bar{display:block}
+  body[data-tool="mosaic"] .opt-mosaic{display:block}
+  body[data-tool="lasso"] .opt-mosaic{display:block}
+  body.sel-censor .opt-mosaic{display:block}
+  .lasso-only{display:none}
+  body[data-tool="lasso"] .row.lasso-only{display:flex}
+  body.sel-lasso .row.lasso-only{display:flex}
 </style>
 </head>
 <body data-tool="move">
@@ -209,6 +216,7 @@
   <button id="fitBtn" class="btn" title="화면에 맞추기 (0)">맞춤</button>
   <span class="spacer"></span>
   <span id="info" class="info"></span>
+  <button id="saveAsTop" class="btn" title="다른 이름으로 저장 (Ctrl+Shift+S)">다른 이름</button>
   <button id="saveBtn" class="btn primary" title="파일로 저장 (Ctrl+S)">저장</button>
 </header>
 
@@ -231,6 +239,15 @@
     </button>
     <button class="tool" data-tool="bubble" title="말풍선 (S)">
       <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 12.5h5"/></svg>
+    </button>
+    <button class="tool" data-tool="bar" title="검은 띠 (R)">
+      <svg viewBox="0 0 24 24"><rect x="2.5" y="9" width="19" height="6" rx="1"/></svg>
+    </button>
+    <button class="tool" data-tool="mosaic" title="모자이크 / 검은 선 (M)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/></svg>
+    </button>
+    <button class="tool" data-tool="lasso" title="올가미 (L)">
+      <svg viewBox="0 0 24 24"><path d="M12 20c-4.5 0-8-2.7-8-6s3.5-6 8-6 8 2.7 8 6c0 1.8-1 3.4-2.6 4.4"/><path d="M15 22l3-2"/></svg>
     </button>
   </nav>
 
@@ -298,6 +315,47 @@
         <button id="cropApply" class="btn primary">자르기 적용</button>
         <button id="cropReset" class="btn">전체 선택</button>
       </div>
+    </div>
+
+    <div class="sec opt opt-bar">
+      <h3>검은 띠</h3>
+      <div class="row">
+        <label>색상</label><input id="barColor" type="color" value="#000000">
+        <label>불투명도</label><input id="barOpacity" type="range" min="10" max="100" value="100"><span class="val" id="barOpacityVal">100</span>
+      </div>
+      <div class="hintline">캔버스를 드래그해 띠를 그립니다. 이동 도구(V)로 옮기고 가장자리 핸들로 두께를 조절할 수 있습니다.</div>
+    </div>
+
+    <div class="sec opt opt-mosaic">
+      <h3>모자이크 / 검은 선</h3>
+      <div class="row">
+        <label>방식</label>
+        <select id="mosaicStyle">
+          <option value="line">얇은 검은 선</option>
+          <option value="pixel">픽셀 모자이크</option>
+        </select>
+      </div>
+      <div id="pixelOpts" style="display:none">
+        <div class="row"><label>블록 크기</label><input id="mosaicBlock" type="range" min="4" max="48" value="12"><span class="val" id="mosaicBlockVal">12</span></div>
+      </div>
+      <div id="lineOpts">
+        <div class="row"><label>선 두께</label><input id="lineWidth" type="range" min="1" max="8" step="0.5" value="2"><span class="val" id="lineWidthVal">2</span></div>
+        <div class="row"><label>선 간격</label><input id="lineGap" type="range" min="2" max="24" value="5"><span class="val" id="lineGapVal">5</span></div>
+        <div class="row"><label>각도</label><input id="lineAngle" type="range" min="-90" max="90" value="-45"><span class="val" id="lineAngleVal">-45°</span></div>
+        <div class="chips">
+          <button class="chip" data-line-angle="-45">↘ 대각</button>
+          <button class="chip" data-line-angle="45">↗ 대각</button>
+          <button class="chip" data-line-angle="0">가로</button>
+          <button class="chip" data-line-angle="90">세로</button>
+        </div>
+        <div class="row lasso-only">
+          <label class="check"><input id="lassoSnap" type="checkbox" checked> 외곽선에 붙이기</label>
+        </div>
+        <div class="row lasso-only">
+          <label class="check"><input id="lassoOutline" type="checkbox"> 테두리도 긋기</label>
+        </div>
+      </div>
+      <div class="hintline">사각형은 드래그, 올가미(L)는 자유롭게 그려 모양을 지정합니다. 방식에서 검은 선과 픽셀 모자이크를 고를 수 있습니다.</div>
     </div>
 
     <div class="sec opt opt-paint">
@@ -526,7 +584,7 @@
   var objects = [];
   var selected = null;
   var selPart = null;
-  var layerSeq = { bubble: 0, text: 0 };
+  var layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0 };
 
   var DEFAULT_FILTERS = { brightness: 100, contrast: 100, saturation: 100, hue: 0, blur: 0, grayscale: 0, sepia: 0, invert: 0 };
   var filters = Object.assign({}, DEFAULT_FILTERS);
@@ -581,6 +639,12 @@
   };
   var pendingBubble = null;
   var pendingTextOffset = { x: 0, y: 0 };
+  var pendingRect = null;
+  var pendingLasso = null;
+  var lassoSnapOn = true;
+  var edgeCache = null;
+  var mosaicOpt = { block: 12, style: 'line', lineWidth: 2, lineGap: 5, angle: -45, color: '#000000', outline: false };
+  var barOpt = { color: '#000000', opacity: 1 };
 
   var textContent = document.getElementById('textContent');
   var textFamily = document.getElementById('textFamily');
@@ -614,6 +678,23 @@
   var brushSize = document.getElementById('brushSize');
   var brushOpacity = document.getElementById('brushOpacity');
   var brushColor = document.getElementById('brushColor');
+
+  var mosaicBlock = document.getElementById('mosaicBlock');
+  var mosaicBlockVal = document.getElementById('mosaicBlockVal');
+  var mosaicStyle = document.getElementById('mosaicStyle');
+  var pixelOpts = document.getElementById('pixelOpts');
+  var lineOpts = document.getElementById('lineOpts');
+  var lineWidth = document.getElementById('lineWidth');
+  var lineWidthVal = document.getElementById('lineWidthVal');
+  var lineGap = document.getElementById('lineGap');
+  var lineGapVal = document.getElementById('lineGapVal');
+  var lineAngle = document.getElementById('lineAngle');
+  var lineAngleVal = document.getElementById('lineAngleVal');
+  var lassoOutline = document.getElementById('lassoOutline');
+  var lassoSnap = document.getElementById('lassoSnap');
+  var barColor = document.getElementById('barColor');
+  var barOpacity = document.getElementById('barOpacity');
+  var barOpacityVal = document.getElementById('barOpacityVal');
 
   var nudgeHint = document.getElementById('nudgeHint');
   var nudgeDelete = document.getElementById('nudgeDelete');
@@ -703,6 +784,8 @@
     vctx.restore();
 
     if (tool === 'crop') drawCropOverlay();
+    if (tool === 'lasso' && pendingLasso) drawLassoPreview();
+    if ((tool === 'bar' || tool === 'mosaic') && pendingRect) drawPendingRect();
     if (tool === 'text' && pendingText) drawTextPreview();
     if (tool === 'bubble' && pendingBubble) {
       drawBubblePreview();
@@ -710,7 +793,7 @@
     }
     if (selected) drawSelectionOverlay();
     if (hasImage && tool === 'bubble' && pendingBubble) drawBubbleHandles(pendingBubble);
-    else if (selected && selected.kind === 'bubble' && (tool === 'move' || tool === 'bubble') && hasImage) drawBubbleHandles(selected.rect);
+    else if (selected && selected.rect && (tool === 'move' || tool === 'bubble') && hasImage) drawBubbleHandles(selected.rect);
     if ((tool === 'brush' || tool === 'eraser') && hover && !(drag && drag.type === 'pan')) drawBrushCursor();
   }
 
@@ -765,6 +848,333 @@
     for (var j = 0; j < pts.length; j++) {
       vctx.fillRect(pts[j][0] - hs / 2, pts[j][1] - hs / 2, hs, hs);
     }
+    vctx.restore();
+  }
+
+  function clampRectToDoc(a, b) {
+    var x = Math.max(0, Math.min(a.x, b.x));
+    var y = Math.max(0, Math.min(a.y, b.y));
+    var x2 = Math.min(base.width, Math.max(a.x, b.x));
+    var y2 = Math.min(base.height, Math.max(a.y, b.y));
+    return { x: x, y: y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) };
+  }
+
+  function pendingRectCoords() {
+    if (!pendingRect) return null;
+    var x = Math.max(0, Math.floor(pendingRect.x));
+    var y = Math.max(0, Math.floor(pendingRect.y));
+    var w = Math.min(base.width, Math.ceil(pendingRect.x + pendingRect.w)) - x;
+    var h = Math.min(base.height, Math.ceil(pendingRect.y + pendingRect.h)) - y;
+    if (w < 1 || h < 1) return null;
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function drawPendingRect() {
+    var r = pendingRectCoords();
+    if (!r) return;
+    var x = panX + r.x * zoom, y = panY + r.y * zoom;
+    var w = r.w * zoom, h = r.h * zoom;
+    vctx.save();
+    if (tool === 'bar') {
+      vctx.globalAlpha = barOpt.opacity;
+      vctx.fillStyle = barOpt.color;
+      vctx.fillRect(x, y, w, h);
+    } else if (mosaicOpt.style === 'line') {
+      vctx.save();
+      vctx.translate(panX, panY);
+      vctx.scale(zoom, zoom);
+      paintLineCensor(vctx, r, mosaicOpt);
+      vctx.restore();
+    } else if (doc.width > 0 && doc.height > 0) {
+      var bs = Math.max(2, Math.round(mosaicOpt.block));
+      var tw = Math.max(1, Math.round(r.w / bs));
+      var th = Math.max(1, Math.round(r.h / bs));
+      var tmp = document.createElement('canvas');
+      tmp.width = tw;
+      tmp.height = th;
+      var t = tmp.getContext('2d');
+      t.imageSmoothingEnabled = true;
+      t.drawImage(doc, r.x, r.y, r.w, r.h, 0, 0, tw, th);
+      vctx.imageSmoothingEnabled = false;
+      vctx.drawImage(tmp, 0, 0, tw, th, x, y, w, h);
+    }
+    vctx.setLineDash([6, 4]);
+    vctx.lineWidth = 1.5;
+    vctx.strokeStyle = 'rgba(79,140,255,0.95)';
+    vctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    vctx.restore();
+  }
+
+  function paintBar(ctx, ob) {
+    ctx.save();
+    ctx.globalAlpha = ob.opacity == null ? 1 : ob.opacity;
+    ctx.fillStyle = ob.color || '#000000';
+    ctx.fillRect(ob.rect.x, ob.rect.y, ob.rect.w, ob.rect.h);
+    ctx.restore();
+  }
+
+  function paintMosaic(ctx, rect, block) {
+    var x = Math.max(0, Math.floor(rect.x));
+    var y = Math.max(0, Math.floor(rect.y));
+    var x2 = Math.min(ctx.canvas.width, Math.ceil(rect.x + rect.w));
+    var y2 = Math.min(ctx.canvas.height, Math.ceil(rect.y + rect.h));
+    var w = x2 - x, h = y2 - y;
+    if (w < 1 || h < 1) return;
+    var bs = Math.max(2, Math.round(block || 12));
+    var tw = Math.max(1, Math.round(w / bs));
+    var th = Math.max(1, Math.round(h / bs));
+    var tmp = document.createElement('canvas');
+    tmp.width = tw;
+    tmp.height = th;
+    var t = tmp.getContext('2d');
+    t.imageSmoothingEnabled = true;
+    t.drawImage(ctx.canvas, x, y, w, h, 0, 0, tw, th);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, 0, 0, tw, th, x, y, w, h);
+    ctx.restore();
+  }
+
+  function paintLineCensor(ctx, rect, o) {
+    o = o || {};
+    var w = rect.w, h = rect.h;
+    if (w < 1 || h < 1) return;
+    var lw = Math.max(0.5, o.lineWidth || 2);
+    var gap = Math.max(lw + 0.5, o.lineGap || 5);
+    var ang = (o.angle || 0) * Math.PI / 180;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, w, h);
+    ctx.clip();
+    ctx.translate(rect.x + w / 2, rect.y + h / 2);
+    ctx.rotate(ang);
+    var len = Math.sqrt(w * w + h * h) + gap * 2;
+    ctx.strokeStyle = o.color || '#000000';
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'butt';
+    for (var d = -len / 2; d <= len / 2; d += gap) {
+      ctx.beginPath();
+      ctx.moveTo(-len / 2, d);
+      ctx.lineTo(len / 2, d);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function pointsBounds(pts) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i];
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  function smoothPoints(pts) {
+    if (pts.length < 3) return pts.slice();
+    var out = [];
+    for (var i = 0; i < pts.length; i++) {
+      var a = pts[i];
+      var b = pts[(i + 1) % pts.length];
+      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+      out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    return out;
+  }
+
+  function pointInPolygon(x, y, pts) {
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = pts[i].x, yi = pts[i].y;
+      var xj = pts[j].x, yj = pts[j].y;
+      if (((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  function tracePolygon(ctx, pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+
+  function paintLassoCensor(ctx, pts, o) {
+    o = o || {};
+    if (!pts || pts.length < 3) return;
+    var b = pointsBounds(pts);
+    if (b.w < 1 || b.h < 1) return;
+    ctx.save();
+    tracePolygon(ctx, pts);
+    ctx.clip();
+    if (o.style === 'pixel') {
+      var bs = Math.max(2, Math.round(o.block || 12));
+      var tw = Math.max(1, Math.round(b.w / bs));
+      var th = Math.max(1, Math.round(b.h / bs));
+      var tmp = document.createElement('canvas');
+      tmp.width = tw;
+      tmp.height = th;
+      var t = tmp.getContext('2d');
+      t.imageSmoothingEnabled = true;
+      t.drawImage(ctx.canvas, b.x, b.y, b.w, b.h, 0, 0, tw, th);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmp, 0, 0, tw, th, b.x, b.y, b.w, b.h);
+    } else {
+      var lw = Math.max(0.5, o.lineWidth || 2);
+      var gap = Math.max(lw + 0.5, o.lineGap || 5);
+      var ang = (o.angle || 0) * Math.PI / 180;
+      ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+      ctx.rotate(ang);
+      var len = Math.sqrt(b.w * b.w + b.h * b.h) + gap * 2;
+      ctx.strokeStyle = o.color || '#000000';
+      ctx.lineWidth = lw;
+      ctx.lineCap = 'butt';
+      for (var d = -len / 2; d <= len / 2; d += gap) {
+        ctx.beginPath();
+        ctx.moveTo(-len / 2, d);
+        ctx.lineTo(len / 2, d);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    if (o.outline) {
+      ctx.save();
+      tracePolygon(ctx, pts);
+      ctx.strokeStyle = o.color || '#000000';
+      ctx.lineWidth = Math.max(1, o.lineWidth || 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function buildEdgeMap() {
+    edgeCache = null;
+    if (!hasImage) return;
+    var maxDim = 900;
+    var scale = Math.min(1, maxDim / Math.max(base.width, base.height));
+    var w = Math.max(3, Math.round(base.width * scale));
+    var h = Math.max(3, Math.round(base.height * scale));
+    var c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    var cx = c.getContext('2d', { willReadFrequently: true });
+    cx.clearRect(0, 0, w, h);
+    cx.drawImage(base, 0, 0, w, h);
+    var data = cx.getImageData(0, 0, w, h).data;
+    var lum = new Float32Array(w * h);
+    var i, n = w * h;
+    for (i = 0; i < n; i++) {
+      var o = i * 4;
+      var a = data[o + 3] / 255;
+      lum[i] = (data[o] * 0.299 + data[o + 1] * 0.587 + data[o + 2] * 0.114) * a;
+    }
+    var grad = new Float32Array(w * h);
+    for (var y = 1; y < h - 1; y++) {
+      var row = y * w;
+      for (var x = 1; x < w - 1; x++) {
+        var idx = row + x;
+        var gx = lum[idx + 1] - lum[idx - 1];
+        var gy = lum[idx + w] - lum[idx - w];
+        grad[idx] = Math.abs(gx) + Math.abs(gy);
+      }
+    }
+    edgeCache = { w: w, h: h, scale: scale, grad: grad };
+  }
+
+  function snapToEdge(p) {
+    if (!lassoSnapOn || !edgeCache) return { x: p.x, y: p.y };
+    var e = edgeCache;
+    var cx = p.x * e.scale;
+    var cy = p.y * e.scale;
+    var r = Math.max(3, Math.round(12 * e.scale));
+    var minX = Math.max(1, Math.floor(cx - r));
+    var maxX = Math.min(e.w - 2, Math.ceil(cx + r));
+    var minY = Math.max(1, Math.floor(cy - r));
+    var maxY = Math.min(e.h - 2, Math.ceil(cy + r));
+    var best = null;
+    var bestScore = 0;
+    for (var y = minY; y <= maxY; y++) {
+      for (var x = minX; x <= maxX; x++) {
+        var dx = x + 0.5 - cx;
+        var dy = y + 0.5 - cy;
+        var d2 = dx * dx + dy * dy;
+        if (d2 > r * r) continue;
+        var g = e.grad[y * e.w + x];
+        if (g < 6) continue;
+        var score = g - Math.sqrt(d2) * 3;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { x: x, y: y };
+        }
+      }
+    }
+    if (!best) return { x: p.x, y: p.y };
+    return { x: (best.x + 0.5) / e.scale, y: (best.y + 0.5) / e.scale };
+  }
+
+  function drawLassoPreview() {
+    var pts = pendingLasso;
+    if (!pts || pts.length < 2) return;
+    if (mosaicOpt.style === 'line') {
+      vctx.save();
+      vctx.translate(panX, panY);
+      vctx.scale(zoom, zoom);
+      paintLassoCensor(vctx, pts, {
+        style: 'line',
+        lineWidth: mosaicOpt.lineWidth,
+        lineGap: mosaicOpt.lineGap,
+        angle: mosaicOpt.angle,
+        color: mosaicOpt.color,
+        outline: false
+      });
+      vctx.restore();
+    } else if (doc.width > 0 && doc.height > 0) {
+      var b = pointsBounds(pts);
+      var bx = Math.max(0, Math.floor(b.x));
+      var by = Math.max(0, Math.floor(b.y));
+      var bx2 = Math.min(doc.width, Math.ceil(b.x + b.w));
+      var by2 = Math.min(doc.height, Math.ceil(b.y + b.h));
+      var sw = bx2 - bx, sh = by2 - by;
+      if (sw > 0 && sh > 0) {
+        var bs = Math.max(2, Math.round(mosaicOpt.block));
+        var tw = Math.max(1, Math.round(sw / bs));
+        var th = Math.max(1, Math.round(sh / bs));
+        var tmp = document.createElement('canvas');
+        tmp.width = tw;
+        tmp.height = th;
+        var t = tmp.getContext('2d');
+        t.imageSmoothingEnabled = true;
+        t.drawImage(doc, bx, by, sw, sh, 0, 0, tw, th);
+        vctx.save();
+        vctx.beginPath();
+        for (var pi = 0; pi < pts.length; pi++) {
+          var px = panX + pts[pi].x * zoom;
+          var py = panY + pts[pi].y * zoom;
+          if (pi === 0) vctx.moveTo(px, py); else vctx.lineTo(px, py);
+        }
+        vctx.closePath();
+        vctx.clip();
+        vctx.imageSmoothingEnabled = false;
+        vctx.drawImage(tmp, 0, 0, tw, th, panX + bx * zoom, panY + by * zoom, sw * zoom, sh * zoom);
+        vctx.restore();
+      }
+    }
+    vctx.save();
+    vctx.setLineDash([5, 4]);
+    vctx.lineWidth = 1.4;
+    vctx.strokeStyle = 'rgba(79,140,255,0.95)';
+    vctx.beginPath();
+    for (var i = 0; i < pts.length; i++) {
+      var sx = panX + pts[i].x * zoom;
+      var sy = panY + pts[i].y * zoom;
+      if (i === 0) vctx.moveTo(sx, sy); else vctx.lineTo(sx, sy);
+    }
+    vctx.stroke();
     vctx.restore();
   }
 
@@ -1202,6 +1612,13 @@
         paintBubble(ctx, ob.rect, ob.opts, ob.text, ob.textOffset);
       } else if (ob.kind === 'text') {
         drawTextObject(ctx, ob);
+      } else if (ob.kind === 'bar') {
+        paintBar(ctx, ob);
+      } else if (ob.kind === 'mosaic') {
+        if (ob.style === 'line') paintLineCensor(ctx, ob.rect, ob);
+        else paintMosaic(ctx, ob.rect, ob.block);
+      } else if (ob.kind === 'lasso') {
+        paintLassoCensor(ctx, ob.points, ob);
       }
     }
   }
@@ -1340,6 +1757,7 @@
       if (selPart === 'text' && ob.text && ob.text.trim()) return bubbleTextBounds(ob);
       return ob.rect;
     }
+    if (ob.kind === 'bar' || ob.kind === 'mosaic' || ob.kind === 'lasso') return ob.rect;
     var b = textObjectBounds(ob);
     return { x: b.x, y: b.y, w: b.widest, h: b.h };
   }
@@ -1357,6 +1775,13 @@
           }
         }
         if (pointInBubble(ob, p.x, p.y)) return { obj: ob, part: 'body' };
+      } else if (ob.kind === 'bar' || ob.kind === 'mosaic') {
+        var r = ob.rect;
+        if (p.x >= r.x - pad && p.x <= r.x + r.w + pad && p.y >= r.y - pad && p.y <= r.y + r.h + pad) {
+          return { obj: ob, part: 'body' };
+        }
+      } else if (ob.kind === 'lasso') {
+        if (pointInPolygon(p.x, p.y, ob.points)) return { obj: ob, part: 'body' };
       } else if (ob.kind === 'text') {
         if (pointInTextObject(ob, p, pad)) return { obj: ob, part: 'text' };
       }
@@ -1445,7 +1870,7 @@
   function hitBubbleHandle(p) {
     var r = null;
     if (tool === 'bubble' && pendingBubble) r = pendingBubble;
-    else if (selected && selected.kind === 'bubble' && (tool === 'move' || tool === 'bubble')) r = selected.rect;
+    else if (selected && selected.rect && (tool === 'move' || tool === 'bubble')) r = selected.rect;
     if (!r || r.w <= 0 || r.h <= 0) return null;
     var x = panX + r.x * zoom, y = panY + r.y * zoom;
     var w = r.w * zoom, h = r.h * zoom;
@@ -1502,6 +1927,7 @@
       mode: mode,
       start: { x: p.x, y: p.y },
       rect: { x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+      points0: !isPending && selected.points ? JSON.parse(JSON.stringify(selected.points)) : null,
       moved: false
     };
     if (isPending) hideBubbleEditor();
@@ -1533,11 +1959,15 @@
   }
 
   function updateNudgeUI() {
+    var censorSel = !!(selected && (selected.kind === 'mosaic' || selected.kind === 'lasso'));
+    document.body.classList.toggle('sel-censor', censorSel);
+    document.body.classList.toggle('sel-lasso', !!(selected && selected.kind === 'lasso'));
     var pending = !!(tool === 'bubble' && pendingBubble);
-    var bubbleOk = pending || !!(selected && selected.kind === 'bubble');
+    var bubbleOk = pending || !!(selected && selected.rect);
     var textOk = (pending && !!bubbleText.value.trim()) ||
       !!(selected && (selected.kind === 'text' || (selected.kind === 'bubble' && selected.text && selected.text.trim())));
-    var any = pending || !!selected;
+    var lassoPending = !!(tool === 'lasso' && pendingLasso);
+    var any = pending || !!selected || lassoPending || !!(pendingRect && (tool === 'bar' || tool === 'mosaic'));
     var i;
     for (i = 0; i < bubbleNudgeButtons.length; i++) bubbleNudgeButtons[i].disabled = !bubbleOk;
     for (i = 0; i < textNudgeButtons.length; i++) textNudgeButtons[i].disabled = !textOk;
@@ -1548,15 +1978,48 @@
       ? '이동 도구(V)로 글자나 말풍선을 클릭해 선택하세요.'
       : pending
         ? '입력 중입니다. 말풍선과 대사를 각각 옮길 수 있습니다.'
-        : selected.kind === 'text'
-          ? '글자를 옮깁니다. 박스 바깥을 끌면 회전합니다.'
-          : '말풍선과 대사를 각각 옮길 수 있습니다.';
+        : lassoPending
+          ? '올가미로 그린 모양 그대로 선이 채워집니다. 손을 떼면 적용됩니다.'
+          : !selected
+            ? '드래그해 영역을 지정하고, 손을 떼면 추가됩니다.'
+            : selected.kind === 'text'
+              ? '글자를 옮깁니다. 박스 바깥을 끌면 회전합니다.'
+              : selected.kind === 'bar'
+                ? '검은 띠를 옮깁니다. 가장자리 핸들로 두께를 조절하세요.'
+                : selected.kind === 'mosaic'
+                  ? '모자이크 영역을 옮깁니다. 가장자리 핸들로 크기를 조절하세요.'
+                  : selected.kind === 'lasso'
+                    ? '올가미 보정을 옮깁니다. 가장자리 핸들로 크기를 조절하세요.'
+                    : '말풍선과 대사를 각각 옮길 수 있습니다.';
     renderLayerList();
+  }
+
+  function syncMosaicUIFrom(ob) {
+    if (!ob || (ob.kind !== 'mosaic' && ob.kind !== 'lasso')) return;
+    if (ob.style) mosaicOpt.style = ob.style;
+    if (ob.lineWidth != null) mosaicOpt.lineWidth = ob.lineWidth;
+    if (ob.lineGap != null) mosaicOpt.lineGap = ob.lineGap;
+    if (ob.angle != null) mosaicOpt.angle = ob.angle;
+    if (ob.color) mosaicOpt.color = ob.color;
+    if (ob.block != null) mosaicOpt.block = ob.block;
+    if (ob.kind === 'lasso') mosaicOpt.outline = !!ob.outline;
+    mosaicStyle.value = mosaicOpt.style;
+    lineWidth.value = mosaicOpt.lineWidth;
+    lineWidthVal.textContent = mosaicOpt.lineWidth;
+    lineGap.value = mosaicOpt.lineGap;
+    lineGapVal.textContent = mosaicOpt.lineGap;
+    lineAngle.value = mosaicOpt.angle;
+    lineAngleVal.textContent = mosaicOpt.angle + '°';
+    mosaicBlock.value = mosaicOpt.block;
+    mosaicBlockVal.textContent = mosaicOpt.block;
+    lassoOutline.checked = !!mosaicOpt.outline;
+    syncMosaicStyleUI();
   }
 
   function setSelected(ob, part) {
     selected = ob || null;
     selPart = part || null;
+    syncMosaicUIFrom(selected);
     updateNudgeUI();
     scheduleRender();
   }
@@ -1564,6 +2027,7 @@
   function beginObjectDrag(hit, p) {
     selected = hit.obj;
     selPart = hit.part;
+    syncMosaicUIFrom(selected);
     if (hit.part === 'text' && hit.obj.kind === 'bubble') {
       drag = {
         type: 'obj-text',
@@ -1573,12 +2037,13 @@
         lay: bubbleTextLayout(mctx, hit.obj.rect, hit.obj.opts, hit.obj.text),
         moved: false
       };
-    } else if (hit.obj.kind === 'bubble') {
+    } else if (hit.obj.rect) {
       drag = {
         type: 'obj-move',
         obj: hit.obj,
         start: { x: p.x, y: p.y },
         rect: { x: hit.obj.rect.x, y: hit.obj.rect.y },
+        points: hit.obj.points ? JSON.parse(JSON.stringify(hit.obj.points)) : null,
         moved: false
       };
     } else {
@@ -1609,10 +2074,16 @@
       scheduleRender();
       return;
     }
-    if (!selected || selected.kind !== 'bubble') return;
+    if (!selected || !selected.rect) return;
     var ob = selected;
     ob.rect.x += dx;
     ob.rect.y += dy;
+    if (ob.points) {
+      for (var i = 0; i < ob.points.length; i++) {
+        ob.points[i].x += dx;
+        ob.points[i].y += dy;
+      }
+    }
     recompose();
     scheduleRender();
     commit();
@@ -1656,9 +2127,18 @@
       scheduleRender();
       return;
     }
-    if (!selected || selected.kind !== 'bubble') return;
-    selected.rect.x = Math.max(0, (base.width - selected.rect.w) / 2);
-    selected.rect.y = Math.max(0, (base.height - selected.rect.h) / 2);
+    if (!selected || !selected.rect) return;
+    var cx = Math.max(0, (base.width - selected.rect.w) / 2);
+    var cy = Math.max(0, (base.height - selected.rect.h) / 2);
+    var cdx = cx - selected.rect.x, cdy = cy - selected.rect.y;
+    selected.rect.x = cx;
+    selected.rect.y = cy;
+    if (selected.points) {
+      for (var i = 0; i < selected.points.length; i++) {
+        selected.points[i].x += cdx;
+        selected.points[i].y += cdy;
+      }
+    }
     recompose();
     scheduleRender();
     commit();
@@ -1714,7 +2194,11 @@
 
   function layerLabel(ob) {
     if (ob.name) return ob.name;
-    return ob.kind === 'bubble' ? '말풍선' : '글자';
+    if (ob.kind === 'bubble') return '말풍선';
+    if (ob.kind === 'bar') return '검은 띠';
+    if (ob.kind === 'mosaic') return '모자이크';
+    if (ob.kind === 'lasso') return '검은 선';
+    return '글자';
   }
 
   function renderLayerList() {
@@ -1768,7 +2252,7 @@
         row.appendChild(down);
         row.addEventListener('click', function () {
           selectTool('move');
-          setSelected(ob, ob.kind === 'bubble' ? 'body' : 'text');
+          setSelected(ob, ob.rect ? 'body' : 'text');
         });
         layerList.appendChild(row);
       })(objects[i]);
@@ -1822,6 +2306,8 @@
     objects = s.objects ? JSON.parse(JSON.stringify(s.objects)) : [];
     selected = null;
     selPart = null;
+    pendingRect = null;
+    pendingLasso = null;
     updateNudgeUI();
     syncFilterUI();
     doc.width = s.w;
@@ -1930,11 +2416,13 @@
       hIndex = -1;
       hasImage = true;
       objects = [];
-      layerSeq = { bubble: 0, text: 0 };
+      layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0 };
       selected = null;
       selPart = null;
       pendingText = null;
       pendingBubble = null;
+      pendingRect = null;
+      pendingLasso = null;
       pendingTextOffset = { x: 0, y: 0 };
       bubbleText.value = '';
       hideBubbleEditor();
@@ -1998,6 +2486,9 @@
       pendingTextOffset = { x: 0, y: 0 };
       updateBubbleButton();
     }
+    pendingRect = null;
+    pendingLasso = null;
+    edgeCache = null;
     hideBubbleEditor();
     updateNudgeUI();
     if (name === 'crop' && hasImage) {
@@ -2008,7 +2499,7 @@
   }
 
   function updateCursor() {
-    var map = { move: 'grab', crop: 'crosshair', brush: 'none', eraser: 'none', text: 'text' };
+    var map = { move: 'grab', crop: 'crosshair', brush: 'none', eraser: 'none', text: 'text', bar: 'crosshair', mosaic: 'crosshair', lasso: 'crosshair' };
     view.style.cursor = spaceHeld ? 'grab' : (map[tool] || 'default');
   }
 
@@ -2246,6 +2737,82 @@
     commit();
   }
 
+  function finishLasso() {
+    var pts = pendingLasso;
+    pendingLasso = null;
+    edgeCache = null;
+    if (!pts || pts.length < 4) {
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+    var sm = smoothPoints(pts);
+    var b = pointsBounds(sm);
+    if (b.w < 6 || b.h < 6) {
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+    var line = mosaicOpt.style === 'line';
+    var ob = {
+      kind: 'lasso',
+      name: (line ? '검은 선 ' : '모자이크 ') + (++layerSeq.mosaic),
+      points: sm,
+      rect: b,
+      style: mosaicOpt.style,
+      block: mosaicOpt.block,
+      lineWidth: mosaicOpt.lineWidth,
+      lineGap: mosaicOpt.lineGap,
+      angle: mosaicOpt.angle,
+      color: mosaicOpt.color,
+      outline: mosaicOpt.outline
+    };
+    objects.push(ob);
+    setSelected(ob, 'body');
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
+  function commitPendingRect(kind) {
+    if (!pendingRect) return;
+    var r = pendingRectCoords();
+    pendingRect = null;
+    if (!r || r.w < 4 || r.h < 4) {
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+    var ob;
+    if (kind === 'bar') {
+      ob = {
+        kind: 'bar',
+        name: '검은 띠 ' + (++layerSeq.bar),
+        rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+        color: barOpt.color,
+        opacity: barOpt.opacity
+      };
+    } else {
+      var line = mosaicOpt.style === 'line';
+      ob = {
+        kind: 'mosaic',
+        name: (line ? '검은 선 ' : '모자이크 ') + (++layerSeq.mosaic),
+        style: mosaicOpt.style,
+        rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+        block: mosaicOpt.block,
+        lineWidth: mosaicOpt.lineWidth,
+        lineGap: mosaicOpt.lineGap,
+        angle: mosaicOpt.angle,
+        color: mosaicOpt.color
+      };
+    }
+    objects.push(ob);
+    setSelected(ob, 'body');
+    recompose();
+    scheduleRender();
+    commit();
+  }
+
   function saveAs() {
     if (!hasImage) return;
     var current = (exportName.value.trim() || 'edit').replace(/\.(png|jpe?g|webp)$/i, '');
@@ -2333,6 +2900,28 @@
       }
     }
 
+    if (tool === 'lasso') {
+      if (!insideDoc(p)) return;
+      setSelected(null, null);
+      drag = { type: 'lasso' };
+      if (lassoSnapOn) buildEdgeMap(); else edgeCache = null;
+      var sp0 = snapToEdge(p);
+      pendingLasso = [{ x: clamp(sp0.x, 0, base.width), y: clamp(sp0.y, 0, base.height) }];
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+
+    if (tool === 'bar' || tool === 'mosaic') {
+      if (!insideDoc(p)) return;
+      setSelected(null, null);
+      drag = { type: 'rect-new', kind: tool, start: { x: p.x, y: p.y } };
+      pendingRect = { x: p.x, y: p.y, w: 0, h: 0 };
+      updateNudgeUI();
+      scheduleRender();
+      return;
+    }
+
     if (tool === 'crop') {
       startCropDrag(p);
       return;
@@ -2389,6 +2978,22 @@
       scheduleRender();
       return;
     }
+    if (drag && drag.type === 'lasso') {
+      var sl = snapToEdge(p);
+      var lx = clamp(sl.x, 0, base.width);
+      var ly = clamp(sl.y, 0, base.height);
+      var last = pendingLasso[pendingLasso.length - 1];
+      if (Math.abs(lx - last.x) + Math.abs(ly - last.y) >= 1.5 / zoom) {
+        pendingLasso.push({ x: lx, y: ly });
+        scheduleRender();
+      }
+      return;
+    }
+    if (drag && drag.type === 'rect-new') {
+      pendingRect = clampRectToDoc(drag.start, p);
+      scheduleRender();
+      return;
+    }
     if (drag && drag.type === 'resize-bubble') {
       var nr = resizeBubbleRect(drag.rect, drag.mode, p.x - drag.start.x, p.y - drag.start.y);
       if (Math.abs(p.x - drag.start.x) > 1 || Math.abs(p.y - drag.start.y) > 1) drag.moved = true;
@@ -2397,6 +3002,13 @@
         pendingTextOffset = clampTextOffset(pendingTextOffset, nr, bubbleOpt, bubbleText.value);
       } else {
         drag.obj.rect = nr;
+        if (drag.obj.points && drag.points0) {
+          var sx = drag.rect.w ? nr.w / drag.rect.w : 1;
+          var sy = drag.rect.h ? nr.h / drag.rect.h : 1;
+          drag.obj.points = drag.points0.map(function (pt) {
+            return { x: nr.x + (pt.x - drag.rect.x) * sx, y: nr.y + (pt.y - drag.rect.y) * sy };
+          });
+        }
         if (drag.obj.textOffset) {
           var lay2 = bubbleTextLayout(mctx, nr, drag.obj.opts, drag.obj.text);
           var mox = Math.abs(nr.w - lay2.widest) / 2;
@@ -2430,7 +3042,7 @@
       var dx = p.x - drag.start.x, dy = p.y - drag.start.y;
       var snap = 8 / zoom;
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) drag.moved = true;
-      if (ob.kind === 'bubble') {
+      if (ob.rect) {
         var mx = drag.rect.x + dx, my = drag.rect.y + dy;
         var ccx = mx + ob.rect.w / 2, ccy = my + ob.rect.h / 2;
         var bsnap = 8 / zoom;
@@ -2438,6 +3050,13 @@
         if (Math.abs(ccy - base.height / 2) <= bsnap) my = base.height / 2 - ob.rect.h / 2;
         ob.rect.x = mx;
         ob.rect.y = my;
+        if (ob.points && drag.points) {
+          var mdx = mx - drag.rect.x, mdy = my - drag.rect.y;
+          for (var pi = 0; pi < drag.points.length; pi++) {
+            ob.points[pi].x = drag.points[pi].x + mdx;
+            ob.points[pi].y = drag.points[pi].y + mdy;
+          }
+        }
       } else {
         var tb = textObjectBounds(ob);
         var offX = tb.x - ob.x;
@@ -2518,6 +3137,8 @@
 
   function endPointer(e) {
     if (drag && drag.type === 'stroke') endStroke();
+    if (drag && drag.type === 'lasso') finishLasso();
+    if (drag && drag.type === 'rect-new') commitPendingRect(drag.kind);
     if (drag && drag.type === 'bubble') {
       if (!pendingBubble || pendingBubble.w < 20 || pendingBubble.h < 20) {
         pendingBubble = defaultBubbleAt(drag.start);
@@ -2649,6 +3270,102 @@
   });
   brushColor.addEventListener('input', function () {
     brush.color = brushColor.value;
+  });
+
+  function syncMosaicStyleUI() {
+    var line = mosaicOpt.style === 'line';
+    pixelOpts.style.display = line ? 'none' : 'block';
+    lineOpts.style.display = line ? 'block' : 'none';
+  }
+
+  function selectedCensor() {
+    return (selected && (selected.kind === 'mosaic' || selected.kind === 'lasso')) ? selected : null;
+  }
+  function liveUpdateCensor(fn) {
+    var ob = selectedCensor();
+    if (!ob) return;
+    fn(ob);
+    recompose();
+    scheduleRender();
+  }
+  function commitCensorIfSelected() {
+    if (selectedCensor()) commit();
+  }
+
+  mosaicStyle.addEventListener('change', function () {
+    mosaicOpt.style = mosaicStyle.value;
+    syncMosaicStyleUI();
+    liveUpdateCensor(function (ob) { ob.style = mosaicOpt.style; });
+    commitCensorIfSelected();
+    if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
+  });
+  mosaicBlock.addEventListener('input', function () {
+    mosaicOpt.block = parseInt(mosaicBlock.value, 10) || 12;
+    mosaicBlockVal.textContent = mosaicOpt.block;
+    liveUpdateCensor(function (ob) {
+      if (ob.style === 'pixel') ob.block = mosaicOpt.block;
+    });
+    if (tool === 'mosaic') scheduleRender();
+  });
+  mosaicBlock.addEventListener('change', commitCensorIfSelected);
+  lineWidth.addEventListener('input', function () {
+    mosaicOpt.lineWidth = parseFloat(lineWidth.value) || 2;
+    lineWidthVal.textContent = mosaicOpt.lineWidth;
+    liveUpdateCensor(function (ob) {
+      if (ob.style === 'line') ob.lineWidth = mosaicOpt.lineWidth;
+    });
+    if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
+  });
+  lineWidth.addEventListener('change', commitCensorIfSelected);
+  lineGap.addEventListener('input', function () {
+    mosaicOpt.lineGap = parseInt(lineGap.value, 10) || 5;
+    lineGapVal.textContent = mosaicOpt.lineGap;
+    liveUpdateCensor(function (ob) {
+      if (ob.style === 'line') ob.lineGap = mosaicOpt.lineGap;
+    });
+    if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
+  });
+  lineGap.addEventListener('change', commitCensorIfSelected);
+  lineAngle.addEventListener('input', function () {
+    mosaicOpt.angle = parseInt(lineAngle.value, 10) || 0;
+    lineAngleVal.textContent = mosaicOpt.angle + '°';
+    liveUpdateCensor(function (ob) {
+      if (ob.style === 'line') ob.angle = mosaicOpt.angle;
+    });
+    if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
+  });
+  lineAngle.addEventListener('change', commitCensorIfSelected);
+  lassoOutline.addEventListener('change', function () {
+    mosaicOpt.outline = lassoOutline.checked;
+    liveUpdateCensor(function (ob) {
+      if (ob.kind === 'lasso') ob.outline = mosaicOpt.outline;
+    });
+    commitCensorIfSelected();
+  });
+  lassoSnap.addEventListener('change', function () {
+    lassoSnapOn = lassoSnap.checked;
+    if (!lassoSnapOn) edgeCache = null;
+  });
+  document.querySelectorAll('[data-line-angle]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      mosaicOpt.angle = parseInt(chip.getAttribute('data-line-angle'), 10);
+      lineAngle.value = mosaicOpt.angle;
+      lineAngleVal.textContent = mosaicOpt.angle + '°';
+      liveUpdateCensor(function (ob) {
+        if (ob.style === 'line') ob.angle = mosaicOpt.angle;
+      });
+      commitCensorIfSelected();
+      if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
+    });
+  });
+  barColor.addEventListener('input', function () {
+    barOpt.color = barColor.value;
+    if (tool === 'bar') scheduleRender();
+  });
+  barOpacity.addEventListener('input', function () {
+    barOpt.opacity = parseInt(barOpacity.value, 10) / 100;
+    barOpacityVal.textContent = barOpacity.value;
+    if (tool === 'bar') scheduleRender();
   });
 
   textContent.addEventListener('input', function () {
@@ -2839,6 +3556,7 @@
   document.getElementById('saveBtn').addEventListener('click', download);
   document.getElementById('downloadBtn').addEventListener('click', download);
   document.getElementById('saveAsBtn').addEventListener('click', saveAs);
+  document.getElementById('saveAsTop').addEventListener('click', saveAs);
 
   window.addEventListener('keydown', function (e) {
     var t = e.target;
@@ -2890,6 +3608,9 @@
     if (typing) return;
 
     if (e.key === 'Escape') {
+      pendingRect = null;
+      pendingLasso = null;
+      edgeCache = null;
       pendingText = null;
       updateTextButton();
       if (pendingBubble) {
@@ -2919,7 +3640,7 @@
     if (e.key === '+' || e.key === '=') { zoomBy(1.25); return; }
     if (e.key === '-') { zoomBy(1 / 1.25); return; }
     if (e.key === '0') { fitView(); return; }
-    var map = { v: 'move', c: 'crop', b: 'brush', e: 'eraser', t: 'text', s: 'bubble' };
+    var map = { v: 'move', c: 'crop', b: 'brush', e: 'eraser', t: 'text', s: 'bubble', r: 'bar', m: 'mosaic', l: 'lasso' };
     var k = e.key.toLowerCase();
     if (map[k]) selectTool(map[k]);
   });
@@ -2939,6 +3660,7 @@
   updateTextButton();
   updateNudgeUI();
   syncFilterUI();
+  syncMosaicStyleUI();
   qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
   resizeView();
 
