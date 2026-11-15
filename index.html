@@ -2441,6 +2441,7 @@
       emptyEl.classList.add('hidden');
       var name = file.name || 'image';
       exportName.value = name.replace(/\.[^.]+$/, '');
+      applyFormatForFile(file, name);
       updateCropReadout();
       updateResizeInputs();
       updateInfo();
@@ -2828,6 +2829,26 @@
 
   function mimeToExt(format) {
     return format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
+  }
+
+  function formatForFileType(type, name) {
+    var t = (type || '').toLowerCase();
+    if (t === 'image/png' || t === 'image/webp' || t === 'image/jpeg') return t;
+    var ext = ((name || '').match(/\.([a-z0-9]+)$/i) || [])[1];
+    ext = (ext || '').toLowerCase();
+    if (ext === 'png') return 'image/png';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'jpg' || ext === 'jpeg' || ext === 'jfif') return 'image/jpeg';
+    return 'image/png';
+  }
+
+  function syncFormatUI() {
+    qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  }
+
+  function applyFormatForFile(file, name) {
+    formatSel.value = formatForFileType(file && file.type, name);
+    syncFormatUI();
   }
 
   function pickerTypes(format, ext) {
@@ -3789,7 +3810,7 @@
   });
 
   formatSel.addEventListener('change', function () {
-    qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+    syncFormatUI();
   });
   quality.addEventListener('input', function () {
     qualityVal.textContent = quality.value;
@@ -3902,7 +3923,7 @@
   updateNudgeUI();
   syncFilterUI();
   syncMosaicStyleUI();
-  qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  syncFormatUI();
   updateSaveHint();
   resizeView();
 
