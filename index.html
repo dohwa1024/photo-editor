@@ -43,6 +43,7 @@
     opacity:0;transition:opacity .2s;pointer-events:none;
   }
   .save-status.show{opacity:1}
+  .save-status.error{color:#ff9a9a;background:rgba(200,60,60,.15);border-color:rgba(230,90,90,.4)}
   .sep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:0 0 auto}
   .spacer{flex:1}
   .info{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:4px}
@@ -2887,6 +2888,19 @@
     });
   }
 
+  function ensureWritePermission(handle) {
+    if (!handle || typeof handle.queryPermission !== 'function') return Promise.resolve(true);
+    return handle.queryPermission({ mode: 'readwrite' }).then(function (perm) {
+      if (perm === 'granted') return true;
+      if (typeof handle.requestPermission !== 'function') return false;
+      return handle.requestPermission({ mode: 'readwrite' }).then(function (p) {
+        return p === 'granted';
+      });
+    }).catch(function () {
+      return false;
+    });
+  }
+
   function askSaveTarget(suggestedName, format, ext) {
     return window.showSaveFilePicker({
       suggestedName: suggestedName,
@@ -2894,16 +2908,27 @@
     });
   }
 
+  function reportSaveError(err) {
+    var msg = (err && (err.name || err.message)) ? (err.name || err.message) : '알 수 없는 오류';
+    setStatus('저장 실패: ' + msg, true);
+    var el = document.getElementById('saveHint');
+    if (el) {
+      el.textContent = '덮어쓰지 못했습니다(' + msg + '). "다른 이름으로 저장"으로 위치를 다시 지정해 주세요.';
+      el.style.color = '#ff8a8a';
+      clearTimeout(reportSaveError.t);
+      reportSaveError.t = setTimeout(function () {
+        el.style.color = '';
+        updateSaveHint();
+      }, 6000);
+    }
+  }
+
   function saveBlobToDisk(blob, name, ext, handle) {
-    var format = formatSel.value;
     return writeToHandle(handle, blob).then(function (f) {
       rememberSource(f, handle);
       exportName.value = f.name.replace(/\.[^.]+$/, '');
       setStatus('저장 완료: ' + f.name);
       return true;
-    }).catch(function () {
-      fallbackDownload(blob, name + '.' + ext);
-      return false;
     });
   }
 
@@ -2918,6 +2943,12 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
   }
 
+  function renderBlobPromise(format, q) {
+    return new Promise(function (resolve) {
+      renderBlob(format, q, function (blob) { resolve(blob); });
+    });
+  }
+
   function saveAs() {
     if (!hasImage) return;
     var format = formatSel.value;
@@ -2925,22 +2956,36 @@
     var q = parseInt(quality.value, 10) / 100;
     var base = currentSaveName();
 
-    renderBlob(format, q, function (blob) {
-      if (!blob) { alert('저장에 실패했습니다.'); return; }
-      if (!saveAsSupported) {
+    if (!saveAsSupported) {
+      renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) { alert('저장에 실패했습니다.'); return; }
         var typed = prompt('저장할 파일 이름을 입력하세요. (이 브라우저는 폴더 선택을 지원하지 않습니다)', base);
         if (typed === null) return;
         typed = typed.trim().replace(/\.(png|jpe?g|webp)$/i, '');
         if (!typed) return;
         exportName.value = typed;
         fallbackDownload(blob, typed + '.' + ext);
-        return;
-      }
-      askSaveTarget(base + '.' + ext, format, ext).then(function (handle) {
-        return saveBlobToDisk(blob, base, ext, handle);
-      }).catch(function (err) {
-        if (err && err.name === 'AbortError') return;
+        setStatus('다운로드 폴더에 저장: ' + typed + '.' + ext);
       });
+      return;
+    }
+
+    var handlePromise;
+    try {
+      handlePromise = askSaveTarget(base + '.' + ext, format, ext);
+    } catch (err) {
+      reportSaveError(err);
+      return;
+    }
+
+    handlePromise.then(function (handle) {
+      return renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) throw new Error('blob-failed');
+        return saveBlobToDisk(blob, base, ext, handle);
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
+      reportSaveError(err);
     });
   }
 
@@ -2951,31 +2996,58 @@
     var q = parseInt(quality.value, 10) / 100;
     var base = currentSaveName();
 
-    renderBlob(format, q, function (blob) {
-      if (!blob) { alert('저장에 실패했습니다.'); return; }
+    if (sourceHandle) {
+      var handle = sourceHandle;
+      Promise.resolve()
+        .then(function () { return ensureWritePermission(handle); })
+        .then(function (ok) {
+          if (!ok) return saveViaPickerFlow(base, format, ext, q);
+          return renderBlobPromise(format, q).then(function (blob) {
+            if (!blob) throw new Error('blob-failed');
+            return saveBlobToDisk(blob, base, ext, handle);
+          });
+        })
+        .catch(function (err) {
+          reportSaveError(err);
+        });
+      return;
+    }
 
-      if (sourceHandle) {
-        saveBlobToDisk(blob, base, ext, sourceHandle);
-        return;
-      }
-
-      if (!saveAsSupported) {
+    if (!saveAsSupported) {
+      renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) { alert('저장에 실패했습니다.'); return; }
         fallbackDownload(blob, base + '.' + ext);
-        return;
-      }
+        setStatus('다운로드 폴더에 저장: ' + base + '.' + ext);
+      });
+      return;
+    }
 
-      askSaveTarget(base + '.' + ext, format, ext).then(function (handle) {
+    saveViaPickerFlow(base, format, ext, q).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
+      reportSaveError(err);
+    });
+  }
+
+  function saveViaPickerFlow(base, format, ext, q) {
+    var handlePromise;
+    try {
+      handlePromise = askSaveTarget(base + '.' + ext, format, ext);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    return handlePromise.then(function (handle) {
+      return renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) throw new Error('blob-failed');
         return saveBlobToDisk(blob, base, ext, handle);
-      }).catch(function (err) {
-        if (err && err.name === 'AbortError') return;
       });
     });
   }
 
-  function setStatus(msg) {
+  function setStatus(msg, isError) {
     var el = document.getElementById('saveStatus');
     if (!el) return;
     el.textContent = msg;
+    el.classList.toggle('error', !!isError);
     el.classList.add('show');
     clearTimeout(setStatus.t);
     setStatus.t = setTimeout(function () {
