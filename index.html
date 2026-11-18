@@ -37,6 +37,7 @@
     padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);
   }
   .brand{font-weight:700;font-size:14px;margin-right:8px;letter-spacing:-.01em;white-space:nowrap}
+  .brand .ver{font-size:10px;font-weight:600;color:#7f8ca3;background:#23272f;border:1px solid var(--line);border-radius:5px;padding:1px 4px;vertical-align:2px}
   .save-status{
     font-size:11px;color:#7fd18a;background:rgba(60,160,90,.15);border:1px solid rgba(90,200,120,.35);
     padding:3px 8px;border-radius:999px;margin-right:8px;white-space:nowrap;
@@ -207,7 +208,7 @@
 <body data-tool="move">
 
 <header>
-  <div class="brand">간단 포토샵</div>
+  <div class="brand">간단 포토샵 <span class="ver">v3</span></div>
   <span id="saveStatus" class="save-status"></span>
   <button id="openBtn" class="btn">이미지 열기</button>
   <span class="sep"></span>
@@ -2828,6 +2829,69 @@
   var sourceHandle = null;
   var writePermGranted = false;
 
+  var idbPromise = null;
+  function idb() {
+    if (!idbPromise) {
+      idbPromise = new Promise(function (resolve, reject) {
+        var req = indexedDB.open('medialog-photo-editor', 1);
+        req.onupgradeneeded = function () {
+          if (!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv');
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      }).catch(function () { return null; });
+    }
+    return idbPromise;
+  }
+
+  function idbSet(key, value) {
+    return idb().then(function (db) {
+      if (!db) return;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(value, key);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      });
+    }).catch(function () {});
+  }
+
+  function idbDelete(key) {
+    return idb().then(function (db) {
+      if (!db) return;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').delete(key);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      });
+    }).catch(function () {});
+  }
+
+  function idbGet(key) {
+    return idb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readonly');
+        var req = tx.objectStore('kv').get(key);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function restoreLastHandle() {
+    return idbGet('lastHandle').then(function (handle) {
+      if (!handle || typeof handle.getFile !== 'function') return;
+      if (hasImage || sourceHandle) return;
+      sourceHandle = handle;
+      return handle.getFile().then(function (f) {
+        sourceFile = f;
+        updateSaveHint();
+      });
+    }).catch(function () {});
+  }
+
   function mimeToExt(format) {
     return format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
   }
@@ -2862,12 +2926,15 @@
   function updateSaveHint() {
     var el = document.getElementById('saveHint');
     if (!el) return;
+    el.style.color = '';
     if (!saveAsSupported) {
       el.textContent = '이 브라우저는 폴더 선택을 지원하지 않아 다운로드 폴더로 저장됩니다.';
       return;
     }
-    if (sourceFile) {
-      el.textContent = '저장하면 "' + sourceFile.name + '"에 덮어씁니다. 다른 경로·이름은 오른쪽 버튼을 쓰세요.';
+    if (sourceHandle) {
+      el.textContent = '저장하면 "' + sourceFile.name + '"에 바로 덮어씁니다.';
+    } else if (sourceFile) {
+      el.textContent = '이 파일은 덮어쓸 수 없습니다. 처음 한 번 저장 위치를 지정하면, 그다음부터는 그 파일에 덮어씁니다.';
     } else {
       el.textContent = '저장을 누르면 저장할 위치와 이름을 물어봅니다.';
     }
@@ -2878,6 +2945,34 @@
     sourceHandle = handle || null;
     if (!handle) writePermGranted = false;
     updateSaveHint();
+
+    if (handle && file) {
+      idbSet('lastFile', {
+        handle: handle,
+        name: file.name,
+        size: file.size,
+        lastModified: file.lastModified
+      }).then(function () { updateSaveHint(); });
+      return;
+    }
+
+    if (!file) {
+      idbDelete('lastFile');
+      return;
+    }
+
+    idbGet('lastFile').then(function (rec) {
+      if (!rec || !rec.handle || sourceHandle) return null;
+      if (rec.name !== file.name || rec.size !== file.size || rec.lastModified !== file.lastModified) return null;
+      if (typeof rec.handle.queryPermission !== 'function') return rec.handle;
+      return rec.handle.queryPermission({ mode: 'readwrite' }).then(function (p) {
+        return p === 'denied' ? null : rec.handle;
+      }).catch(function () { return null; });
+    }).then(function (h) {
+      if (!h || sourceHandle || !sourceFile) return;
+      sourceHandle = h;
+      updateSaveHint();
+    }).catch(function () {});
   }
 
   function currentSaveName() {
@@ -3025,42 +3120,50 @@
 
     if (sourceHandle) {
       var handle = sourceHandle;
-      ensureWritePermission(handle).then(function (ok) {
-        if (!ok) {
-          setStatus('쓰기 권한이 거부되었습니다', true);
-          var el = document.getElementById('saveHint');
-          if (el) {
-            el.textContent = '이 파일에 쓸 권한이 없습니다. 브라우저 주소창의 권한을 허용하거나 "다른 이름으로 저장"을 써 주세요.';
-            el.style.color = '#ff8a8a';
-          }
-          return;
-        }
-        var writablePromise;
+
+      function openWritable() {
         try {
-          writablePromise = handle.createWritable();
+          return Promise.resolve(handle.createWritable());
         } catch (err) {
-          writablePromise = Promise.reject(err);
+          return Promise.reject(err);
         }
-        return writablePromise.then(function (w) {
-          return renderBlobPromise(format, q).then(function (blob) {
-            if (!blob) throw new Error('blob-failed');
-            return w.write(blob).then(function () {
-              return w.close();
-            }).then(function () {
-              return handle.getFile();
-            }).then(function (f) {
-              rememberSource(f, handle);
-              exportName.value = f.name.replace(/\.[^.]+$/, '');
-              setStatus('저장 완료: ' + f.name);
-            });
-          }).catch(function (err) {
-            try { w.abort && w.abort(); } catch (e) {}
-            throw err;
+      }
+
+      function writeInto(w) {
+        return renderBlobPromise(format, q).then(function (blob) {
+          if (!blob) throw new Error('blob-failed');
+          return w.write(blob).then(function () {
+            return w.close();
+          }).then(function () {
+            return handle.getFile();
           });
+        }).catch(function (err) {
+          try { if (w.abort) w.abort(); } catch (e) {}
+          throw err;
         });
-      }).catch(function (err) {
-        reportSaveError(err);
-      });
+      }
+
+      function reportDone(f) {
+        rememberSource(f, handle);
+        exportName.value = f.name.replace(/\.[^.]+$/, '');
+        setStatus('저장 완료: ' + f.name);
+      }
+
+      openWritable()
+        .then(writeInto)
+        .then(reportDone)
+        .catch(function (err) {
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+            return ensureWritePermission(handle).then(function (ok) {
+              if (!ok) throw err;
+              return openWritable().then(writeInto).then(reportDone);
+            });
+          }
+          throw err;
+        })
+        .catch(function (err) {
+          reportSaveError(err);
+        });
       return;
     }
 
