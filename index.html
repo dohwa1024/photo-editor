@@ -208,7 +208,7 @@
 <body data-tool="move">
 
 <header>
-  <div class="brand">간단 포토샵 <span class="ver">v3</span></div>
+  <div class="brand">간단 포토샵 <span class="ver">v4</span></div>
   <span id="saveStatus" class="save-status"></span>
   <button id="openBtn" class="btn">이미지 열기</button>
   <span class="sep"></span>
@@ -2934,7 +2934,7 @@
     if (sourceHandle) {
       el.textContent = '저장하면 "' + sourceFile.name + '"에 바로 덮어씁니다.';
     } else if (sourceFile) {
-      el.textContent = '이 파일은 덮어쓸 수 없습니다. 처음 한 번 저장 위치를 지정하면, 그다음부터는 그 파일에 덮어씁니다.';
+      el.textContent = '이 이미지는 원본 경로가 없어 저장(Ctrl+S)으로 덮어쓸 수 없습니다. "다른 이름으로 저장"을 쓰세요.';
     } else {
       el.textContent = '저장을 누르면 저장할 위치와 이름을 물어봅니다.';
     }
@@ -3114,70 +3114,63 @@
   function save() {
     if (!hasImage) return;
     var format = formatSel.value;
-    var ext = mimeToExt(format);
     var q = parseInt(quality.value, 10) / 100;
-    var base = currentSaveName();
 
-    if (sourceHandle) {
-      var handle = sourceHandle;
-
-      function openWritable() {
-        try {
-          return Promise.resolve(handle.createWritable());
-        } catch (err) {
-          return Promise.reject(err);
-        }
+    // No handle (e.g. pasted image): Save never opens a picker.
+    if (!sourceHandle) {
+      setStatus('원본 경로 없음', true);
+      var el = document.getElementById('saveHint');
+      if (el) {
+        el.textContent = '이 이미지는 원본 파일 경로가 없어 덮어쓸 수 없습니다. "다른 이름으로 저장"을 사용해 주세요.';
+        el.style.color = '#ff8a8a';
+        clearTimeout(save._t);
+        save._t = setTimeout(function () { updateSaveHint(); }, 6000);
       }
+      return;
+    }
 
-      function writeInto(w) {
-        return renderBlobPromise(format, q).then(function (blob) {
-          if (!blob) throw new Error('blob-failed');
-          return w.write(blob).then(function () {
-            return w.close();
-          }).then(function () {
-            return handle.getFile();
-          });
-        }).catch(function (err) {
-          try { if (w.abort) w.abort(); } catch (e) {}
-          throw err;
-        });
-      }
+    var handle = sourceHandle;
 
-      function reportDone(f) {
-        rememberSource(f, handle);
-        exportName.value = f.name.replace(/\.[^.]+$/, '');
-        setStatus('저장 완료: ' + f.name);
-      }
+    // Call permission request first, synchronously in the click gesture.
+    var permPromise = ensureWritePermission(handle);
 
-      openWritable()
-        .then(writeInto)
-        .then(reportDone)
-        .catch(function (err) {
-          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-            return ensureWritePermission(handle).then(function (ok) {
-              if (!ok) throw err;
-              return openWritable().then(writeInto).then(reportDone);
-            });
-          }
-          throw err;
+    function writeOnce() {
+      var writable = null;
+      return Promise.resolve()
+        .then(function () { return handle.createWritable(); })
+        .then(function (w) {
+          writable = w;
+          return renderBlobPromise(format, q);
         })
+        .then(function (blob) {
+          if (!blob) throw new Error('blob-failed');
+          return writable.write(blob);
+        })
+        .then(function () { return writable.close(); })
+        .then(function () { return handle.getFile(); })
         .catch(function (err) {
-          reportSaveError(err);
+          try { if (writable && writable.abort) writable.abort(); } catch (e) {}
+          throw err;
         });
-      return;
     }
 
-    if (!saveAsSupported) {
-      renderBlobPromise(format, q).then(function (blob) {
-        if (!blob) { alert('저장에 실패했습니다.'); return; }
-        fallbackDownload(blob, base + '.' + ext);
-        setStatus('다운로드 폴더에 저장: ' + base + '.' + ext);
-      });
-      return;
-    }
-
-    saveViaPickerFlow(base, format, ext, q).catch(function (err) {
-      if (err && err.name === 'AbortError') return;
+    permPromise.then(function (granted) {
+      if (!granted) {
+        setStatus('쓰기 권한이 필요합니다', true);
+        var hint = document.getElementById('saveHint');
+        if (hint) {
+          hint.textContent = '브라우저가 이 파일 쓰기를 막았습니다. 주소창의 파일 권한을 허용해 주세요.';
+          hint.style.color = '#ff8a8a';
+        }
+        throw new Error('permission-denied');
+      }
+      return writeOnce();
+    }).then(function (f) {
+      rememberSource(f, handle);
+      exportName.value = f.name.replace(/\.[^.]+$/, '');
+      setStatus('저장 완료: ' + f.name);
+    }).catch(function (err) {
+      if (err && err.message === 'permission-denied') return;
       reportSaveError(err);
     });
   }
@@ -3569,17 +3562,19 @@
       multiple: false,
       types: [{
         description: '이미지',
-        accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.avif'] }
+        accept: {
+          'image/png': ['.png'],
+          'image/jpeg': ['.jpg', '.jpeg', '.jfif'],
+          'image/webp': ['.webp'],
+          'image/gif': ['.gif'],
+          'image/bmp': ['.bmp'],
+          'image/avif': ['.avif']
+        }
       }]
     }).then(function (handles) {
       var handle = handles && handles[0];
       if (!handle) return;
-      var permPromise = (typeof handle.requestPermission === 'function')
-        ? handle.requestPermission({ mode: 'readwrite' }).catch(function () { return 'denied'; })
-        : Promise.resolve('granted');
-      return Promise.all([handle.getFile(), permPromise]).then(function (res) {
-        var f = res[0];
-        writePermGranted = res[1] === 'granted';
+      return handle.getFile().then(function (f) {
         rememberSource(f, handle);
         openFile(f);
       });
@@ -3610,6 +3605,23 @@
   stage.addEventListener('drop', function (e) {
     e.preventDefault();
     stage.classList.remove('dragover');
+    var items = e.dataTransfer && e.dataTransfer.items;
+    if (items && items.length && typeof items[0].getAsFileSystemHandle === 'function') {
+      items[0].getAsFileSystemHandle().then(function (handle) {
+        if (handle && handle.kind === 'file') {
+          return handle.getFile().then(function (f) {
+            rememberSource(f, handle);
+            openFile(f);
+          });
+        }
+        var f = items[0].getAsFile();
+        if (f) { rememberSource(f, null); openFile(f); }
+      }).catch(function () {
+        var f = items[0].getAsFile();
+        if (f) { rememberSource(f, null); openFile(f); }
+      });
+      return;
+    }
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f) { rememberSource(f, null); openFile(f); }
   });
