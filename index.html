@@ -2826,6 +2826,7 @@
   var saveAsSupported = typeof window.showSaveFilePicker === 'function';
   var sourceFile = null;
   var sourceHandle = null;
+  var writePermGranted = false;
 
   function mimeToExt(format) {
     return format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
@@ -2875,6 +2876,7 @@
   function rememberSource(file, handle) {
     sourceFile = file || null;
     sourceHandle = handle || null;
+    if (!handle) writePermGranted = false;
     updateSaveHint();
   }
 
@@ -2910,13 +2912,17 @@
   }
 
   function ensureWritePermission(handle) {
-    if (!handle || typeof handle.queryPermission !== 'function') return Promise.resolve(true);
-    return handle.queryPermission({ mode: 'readwrite' }).then(function (perm) {
-      if (perm === 'granted') return true;
-      if (typeof handle.requestPermission !== 'function') return false;
+    if (!handle) return Promise.resolve(false);
+    if (typeof handle.requestPermission === 'function') {
       return handle.requestPermission({ mode: 'readwrite' }).then(function (p) {
         return p === 'granted';
+      }).catch(function () {
+        return false;
       });
+    }
+    if (typeof handle.queryPermission !== 'function') return Promise.resolve(true);
+    return handle.queryPermission({ mode: 'readwrite' }).then(function (p) {
+      return p === 'granted';
     }).catch(function () {
       return false;
     });
@@ -3019,18 +3025,42 @@
 
     if (sourceHandle) {
       var handle = sourceHandle;
-      Promise.resolve()
-        .then(function () { return ensureWritePermission(handle); })
-        .then(function (ok) {
-          if (!ok) return saveViaPickerFlow(base, format, ext, q);
+      ensureWritePermission(handle).then(function (ok) {
+        if (!ok) {
+          setStatus('쓰기 권한이 거부되었습니다', true);
+          var el = document.getElementById('saveHint');
+          if (el) {
+            el.textContent = '이 파일에 쓸 권한이 없습니다. 브라우저 주소창의 권한을 허용하거나 "다른 이름으로 저장"을 써 주세요.';
+            el.style.color = '#ff8a8a';
+          }
+          return;
+        }
+        var writablePromise;
+        try {
+          writablePromise = handle.createWritable();
+        } catch (err) {
+          writablePromise = Promise.reject(err);
+        }
+        return writablePromise.then(function (w) {
           return renderBlobPromise(format, q).then(function (blob) {
             if (!blob) throw new Error('blob-failed');
-            return saveBlobToDisk(blob, base, ext, handle);
+            return w.write(blob).then(function () {
+              return w.close();
+            }).then(function () {
+              return handle.getFile();
+            }).then(function (f) {
+              rememberSource(f, handle);
+              exportName.value = f.name.replace(/\.[^.]+$/, '');
+              setStatus('저장 완료: ' + f.name);
+            });
+          }).catch(function (err) {
+            try { w.abort && w.abort(); } catch (e) {}
+            throw err;
           });
-        })
-        .catch(function (err) {
-          reportSaveError(err);
         });
+      }).catch(function (err) {
+        reportSaveError(err);
+      });
       return;
     }
 
@@ -3441,7 +3471,12 @@
     }).then(function (handles) {
       var handle = handles && handles[0];
       if (!handle) return;
-      return handle.getFile().then(function (f) {
+      var permPromise = (typeof handle.requestPermission === 'function')
+        ? handle.requestPermission({ mode: 'readwrite' }).catch(function () { return 'denied'; })
+        : Promise.resolve('granted');
+      return Promise.all([handle.getFile(), permPromise]).then(function (res) {
+        var f = res[0];
+        writePermGranted = res[1] === 'granted';
         rememberSource(f, handle);
         openFile(f);
       });
