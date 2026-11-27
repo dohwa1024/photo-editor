@@ -82,6 +82,7 @@
     position:relative;flex:1;min-width:0;background:#0f1115;overflow:hidden;
   }
   #stage.dragover{box-shadow:inset 0 0 0 2px var(--accent)}
+  #layerSec.dragover{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:8px;background:rgba(79,140,255,.08)}
   #view{position:absolute;inset:0;display:block;touch-action:none}
   #hint{
     position:absolute;left:12px;bottom:10px;font-size:11px;color:#6f7b8e;
@@ -211,6 +212,7 @@
   <div class="brand">간단 포토샵 <span class="ver">v4</span></div>
   <span id="saveStatus" class="save-status"></span>
   <button id="openBtn" class="btn">이미지 열기</button>
+  <button id="addBtn" class="btn">이미지 추가</button>
   <span class="sep"></span>
   <button id="undoBtn" class="btn icon" title="실행취소 (Ctrl+Z)" disabled>
     <svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg>
@@ -503,7 +505,7 @@
       </div>
     </div>
 
-    <div class="sec">
+    <div class="sec" id="layerSec">
       <h3>레이어</h3>
       <div id="layerList" class="layers"></div>
     </div>
@@ -568,6 +570,7 @@
 </div>
 
 <input id="fileInput" type="file" accept="image/*" hidden>
+<input id="addInput" type="file" accept="image/*" hidden>
 
 <script>
 (function () {
@@ -580,6 +583,7 @@
   var infoEl = document.getElementById('info');
   var zoomLabel = document.getElementById('zoomLabel');
   var fileInput = document.getElementById('fileInput');
+  var addInput = document.getElementById('addInput');
   var undoBtn = document.getElementById('undoBtn');
   var redoBtn = document.getElementById('redoBtn');
 
@@ -2525,6 +2529,12 @@
     img.src = url;
   }
 
+  function openNewDocument(file, handle) {
+    if (!file || !/^image\//.test(file.type)) return;
+    rememberSource(file, handle || null);
+    openFile(file);
+  }
+
   function openIncoming(file, handle) {
     if (!file || !/^image\//.test(file.type)) return;
     if (hasImage) {
@@ -3653,7 +3663,7 @@
       var handle = handles && handles[0];
       if (!handle) return;
       return handle.getFile().then(function (f) {
-        openIncoming(f, handle);
+        openNewDocument(f, handle);
       });
     }).catch(function (err) {
       if (err && err.name === 'AbortError') return;
@@ -3663,8 +3673,33 @@
 
   fileInput.addEventListener('change', function () {
     var f = fileInput.files && fileInput.files[0];
-    if (f) openIncoming(f, null);
+    if (f) openNewDocument(f, null);
     fileInput.value = '';
+  });
+
+  document.getElementById('addBtn').addEventListener('click', function () { addInput.click(); });
+  addInput.addEventListener('change', function () {
+    var f = addInput.files && addInput.files[0];
+    if (f) openIncoming(f, null);
+    addInput.value = '';
+  });
+
+  var layerSec = document.getElementById('layerSec');
+  layerSec.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    layerSec.classList.add('dragover');
+  });
+  layerSec.addEventListener('dragleave', function () { layerSec.classList.remove('dragover'); });
+  layerSec.addEventListener('drop', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    layerSec.classList.remove('dragover');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    if (!/^image\//.test(f.type)) return;
+    if (hasImage) addImageLayer(f);
+    else openIncoming(f, null);
   });
 
   undoBtn.addEventListener('click', undo);
@@ -3687,19 +3722,19 @@
       items[0].getAsFileSystemHandle().then(function (handle) {
         if (handle && handle.kind === 'file') {
           return handle.getFile().then(function (f) {
-            openIncoming(f, handle);
+            openNewDocument(f, handle);
           });
         }
         var f = items[0].getAsFile();
-        if (f) openIncoming(f, null);
+        if (f) openNewDocument(f, null);
       }).catch(function () {
         var f = items[0].getAsFile();
-        if (f) openIncoming(f, null);
+        if (f) openNewDocument(f, null);
       });
       return;
     }
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) openIncoming(f, null);
+    if (f) openNewDocument(f, null);
   });
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
@@ -3709,7 +3744,7 @@
     for (var i = 0; i < items.length; i++) {
       if (items[i].type && items[i].type.indexOf('image/') === 0) {
         var f = items[i].getAsFile();
-        if (f) { openIncoming(f, null); break; }
+        if (f) { openNewDocument(f, null); break; }
       }
     }
   });
