@@ -584,7 +584,7 @@
   var objects = [];
   var selected = null;
   var selPart = null;
-  var layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0 };
+  var layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0, image: 0 };
 
   var DEFAULT_FILTERS = { brightness: 100, contrast: 100, saturation: 100, hue: 0, blur: 0, grayscale: 0, sepia: 0, invert: 0 };
   var filters = Object.assign({}, DEFAULT_FILTERS);
@@ -1619,6 +1619,8 @@
         else paintMosaic(ctx, ob.rect, ob.block);
       } else if (ob.kind === 'lasso') {
         paintLassoCensor(ctx, ob.points, ob);
+      } else if (ob.kind === 'image') {
+        drawImageObject(ctx, ob);
       }
     }
   }
@@ -1648,12 +1650,34 @@
     dctx.filter = 'none';
   }
 
+  function cloneObjectList(list) {
+    return (list || []).map(function (ob) {
+      var copy = {};
+      for (var key in ob) {
+        if (!Object.prototype.hasOwnProperty.call(ob, key)) continue;
+        if (key === 'img') copy[key] = ob[key];
+        else copy[key] = ob[key] === undefined ? undefined : JSON.parse(JSON.stringify(ob[key]));
+      }
+      return copy;
+    });
+  }
+
   function cloneObjects() {
-    return JSON.parse(JSON.stringify(objects));
+    return cloneObjectList(objects);
   }
 
   function textObjectBounds(ob) {
     return textLayout(mctx, ob.text, { x: ob.x, y: ob.y }, ob.opts, ob.opts.maxWidth);
+  }
+
+  function drawImageObject(ctx, ob) {
+    if (!ob.img) return;
+    ctx.save();
+    ctx.globalAlpha = ob.opacity == null ? 1 : ob.opacity;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(ob.img, ob.rect.x, ob.rect.y, ob.rect.w, ob.rect.h);
+    ctx.restore();
   }
 
   function drawTextObject(ctx, ob) {
@@ -1757,7 +1781,7 @@
       if (selPart === 'text' && ob.text && ob.text.trim()) return bubbleTextBounds(ob);
       return ob.rect;
     }
-    if (ob.kind === 'bar' || ob.kind === 'mosaic' || ob.kind === 'lasso') return ob.rect;
+    if (ob.kind === 'bar' || ob.kind === 'mosaic' || ob.kind === 'lasso' || ob.kind === 'image') return ob.rect;
     var b = textObjectBounds(ob);
     return { x: b.x, y: b.y, w: b.widest, h: b.h };
   }
@@ -1782,6 +1806,11 @@
         }
       } else if (ob.kind === 'lasso') {
         if (pointInPolygon(p.x, p.y, ob.points)) return { obj: ob, part: 'body' };
+      } else if (ob.kind === 'image') {
+        var ir = ob.rect;
+        if (p.x >= ir.x - pad && p.x <= ir.x + ir.w + pad && p.y >= ir.y - pad && p.y <= ir.y + ir.h + pad) {
+          return { obj: ob, part: 'body' };
+        }
       } else if (ob.kind === 'text') {
         if (pointInTextObject(ob, p, pad)) return { obj: ob, part: 'text' };
       }
@@ -1990,7 +2019,9 @@
                   ? '모자이크 영역을 옮깁니다. 가장자리 핸들로 크기를 조절하세요.'
                   : selected.kind === 'lasso'
                     ? '올가미 보정을 옮깁니다. 가장자리 핸들로 크기를 조절하세요.'
-                    : '말풍선과 대사를 각각 옮길 수 있습니다.';
+                    : selected.kind === 'image'
+                      ? '사진 레이어를 옮깁니다. 가장자리 핸들로 크기를 조절하세요.'
+                      : '말풍선과 대사를 각각 옮길 수 있습니다.';
     renderLayerList();
   }
 
@@ -2198,6 +2229,7 @@
     if (ob.kind === 'bar') return '검은 띠';
     if (ob.kind === 'mosaic') return '모자이크';
     if (ob.kind === 'lasso') return '검은 선';
+    if (ob.kind === 'image') return '사진';
     return '글자';
   }
 
@@ -2303,7 +2335,7 @@
     }
     bctx.putImageData(s.data, 0, 0);
     filters = Object.assign({}, DEFAULT_FILTERS, s.filters);
-    objects = s.objects ? JSON.parse(JSON.stringify(s.objects)) : [];
+    objects = cloneObjectList(s.objects);
     selected = null;
     selPart = null;
     pendingRect = null;
@@ -2416,7 +2448,7 @@
       hIndex = -1;
       hasImage = true;
       objects = [];
-      layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0 };
+      layerSeq = { bubble: 0, text: 0, bar: 0, mosaic: 0, image: 0 };
       selected = null;
       selPart = null;
       pendingText = null;
@@ -2444,6 +2476,48 @@
       alert('이미지를 열 수 없습니다.');
     };
     img.src = url;
+  }
+
+  function addImageLayer(file) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var iw = img.naturalWidth;
+      var ih = img.naturalHeight;
+      if (!iw || !ih) return;
+      var scale = Math.min(1, (base.width * 0.8) / iw, (base.height * 0.8) / ih);
+      var w = Math.max(1, Math.round(iw * scale));
+      var h = Math.max(1, Math.round(ih * scale));
+      var ob = {
+        kind: 'image',
+        name: '사진 ' + (++layerSeq.image),
+        rect: {
+          x: Math.round((base.width - w) / 2),
+          y: Math.round((base.height - h) / 2),
+          w: w,
+          h: h
+        },
+        opacity: 1,
+        img: img
+      };
+      objects.push(ob);
+      setSelected(ob, 'body');
+      recompose();
+      scheduleRender();
+      commit();
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      alert('이미지를 열 수 없습니다.');
+    };
+    img.src = url;
+  }
+
+  function handleImageFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    if (hasImage) addImageLayer(file);
+    else openFile(file);
   }
 
   function syncFilterUI() {
@@ -3195,7 +3269,7 @@
 
   fileInput.addEventListener('change', function () {
     var f = fileInput.files && fileInput.files[0];
-    if (f) openFile(f);
+    if (f) handleImageFile(f);
     fileInput.value = '';
   });
 
@@ -3215,7 +3289,7 @@
     e.preventDefault();
     stage.classList.remove('dragover');
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) openFile(f);
+    if (f) handleImageFile(f);
   });
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
@@ -3225,7 +3299,7 @@
     for (var i = 0; i < items.length; i++) {
       if (items[i].type && items[i].type.indexOf('image/') === 0) {
         var f = items[i].getAsFile();
-        if (f) { openFile(f); break; }
+        if (f) { handleImageFile(f); break; }
       }
     }
   });
