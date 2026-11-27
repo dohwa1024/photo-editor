@@ -37,6 +37,14 @@
     padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);
   }
   .brand{font-weight:700;font-size:14px;margin-right:8px;letter-spacing:-.01em;white-space:nowrap}
+  .brand .ver{font-size:10px;font-weight:600;color:#7f8ca3;background:#23272f;border:1px solid var(--line);border-radius:5px;padding:1px 4px;vertical-align:2px}
+  .save-status{
+    font-size:11px;color:#7fd18a;background:rgba(60,160,90,.15);border:1px solid rgba(90,200,120,.35);
+    padding:3px 8px;border-radius:999px;margin-right:8px;white-space:nowrap;
+    opacity:0;transition:opacity .2s;pointer-events:none;
+  }
+  .save-status.show{opacity:1}
+  .save-status.error{color:#ff9a9a;background:rgba(200,60,60,.15);border-color:rgba(230,90,90,.4)}
   .sep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:0 0 auto}
   .spacer{flex:1}
   .info{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:4px}
@@ -200,7 +208,8 @@
 <body data-tool="move">
 
 <header>
-  <div class="brand">간단 포토샵</div>
+  <div class="brand">간단 포토샵 <span class="ver">v4</span></div>
+  <span id="saveStatus" class="save-status"></span>
   <button id="openBtn" class="btn">이미지 열기</button>
   <span class="sep"></span>
   <button id="undoBtn" class="btn icon" title="실행취소 (Ctrl+Z)" disabled>
@@ -217,7 +226,7 @@
   <span class="spacer"></span>
   <span id="info" class="info"></span>
   <button id="saveAsTop" class="btn" title="다른 이름으로 저장 (Ctrl+Shift+S)">다른 이름</button>
-  <button id="saveBtn" class="btn primary" title="파일로 저장 (Ctrl+S)">저장</button>
+  <button id="saveBtn" class="btn primary" title="원본 파일에 덮어쓰기 (Ctrl+S)">저장</button>
 </header>
 
 <div id="main">
@@ -551,8 +560,9 @@
       <div class="row" id="qualityRow">
         <label>품질</label><input id="quality" type="range" min="40" max="100" value="92"><span class="val" id="qualityVal">92</span>
       </div>
-      <button id="downloadBtn" class="btn primary full">파일로 저장</button>
-      <button id="saveAsBtn" class="btn full" style="margin-top:6px">다른 이름으로 저장</button>
+      <button id="downloadBtn" class="btn full">다운로드 폴더로 저장</button>
+      <button id="saveAsBtn" class="btn primary full" style="margin-top:6px">다른 이름으로 저장 (경로·이름 선택)</button>
+      <div class="hintline" id="saveHint" style="margin-top:8px"></div>
     </div>
   </aside>
 </div>
@@ -2464,6 +2474,7 @@
       emptyEl.classList.add('hidden');
       var name = file.name || 'image';
       exportName.value = name.replace(/\.[^.]+$/, '');
+      applyFormatForFile(file, name);
       updateCropReadout();
       updateResizeInputs();
       updateInfo();
@@ -2514,10 +2525,14 @@
     img.src = url;
   }
 
-  function handleImageFile(file) {
+  function openIncoming(file, handle) {
     if (!file || !/^image\//.test(file.type)) return;
-    if (hasImage) addImageLayer(file);
-    else openFile(file);
+    if (hasImage) {
+      addImageLayer(file);
+      return;
+    }
+    rememberSource(file, handle || null);
+    openFile(file);
   }
 
   function syncFilterUI() {
@@ -2887,22 +2902,166 @@
     commit();
   }
 
-  function saveAs() {
-    if (!hasImage) return;
-    var current = (exportName.value.trim() || 'edit').replace(/\.(png|jpe?g|webp)$/i, '');
-    var name = prompt('저장할 파일 이름을 입력하세요.', current);
-    if (name === null) return;
-    name = name.trim();
-    if (!name) return;
-    exportName.value = name.replace(/\.(png|jpe?g|webp)$/i, '');
-    download();
+  var saveAsSupported = typeof window.showSaveFilePicker === 'function';
+  var sourceFile = null;
+  var sourceHandle = null;
+  var writePermGranted = false;
+
+  var idbPromise = null;
+  function idb() {
+    if (!idbPromise) {
+      idbPromise = new Promise(function (resolve, reject) {
+        var req = indexedDB.open('medialog-photo-editor', 1);
+        req.onupgradeneeded = function () {
+          if (!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv');
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      }).catch(function () { return null; });
+    }
+    return idbPromise;
   }
 
-  function download() {
-    if (!hasImage) return;
+  function idbSet(key, value) {
+    return idb().then(function (db) {
+      if (!db) return;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(value, key);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      });
+    }).catch(function () {});
+  }
+
+  function idbDelete(key) {
+    return idb().then(function (db) {
+      if (!db) return;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').delete(key);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      });
+    }).catch(function () {});
+  }
+
+  function idbGet(key) {
+    return idb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (resolve) {
+        var tx = db.transaction('kv', 'readonly');
+        var req = tx.objectStore('kv').get(key);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function restoreLastHandle() {
+    return idbGet('lastHandle').then(function (handle) {
+      if (!handle || typeof handle.getFile !== 'function') return;
+      if (hasImage || sourceHandle) return;
+      sourceHandle = handle;
+      return handle.getFile().then(function (f) {
+        sourceFile = f;
+        updateSaveHint();
+      });
+    }).catch(function () {});
+  }
+
+  function mimeToExt(format) {
+    return format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
+  }
+
+  function formatForFileType(type, name) {
+    var t = (type || '').toLowerCase();
+    if (t === 'image/png' || t === 'image/webp' || t === 'image/jpeg') return t;
+    var ext = ((name || '').match(/\.([a-z0-9]+)$/i) || [])[1];
+    ext = (ext || '').toLowerCase();
+    if (ext === 'png') return 'image/png';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'jpg' || ext === 'jpeg' || ext === 'jfif') return 'image/jpeg';
+    return 'image/png';
+  }
+
+  function syncFormatUI() {
+    qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  }
+
+  function applyFormatForFile(file, name) {
+    formatSel.value = formatForFileType(file && file.type, name);
+    syncFormatUI();
+  }
+
+  function pickerTypes(format, ext) {
+    return [{
+      description: ext.toUpperCase() + ' 이미지',
+      accept: { [format]: ['.' + ext] }
+    }];
+  }
+
+  function updateSaveHint() {
+    var el = document.getElementById('saveHint');
+    if (!el) return;
+    el.style.color = '';
+    if (!saveAsSupported) {
+      el.textContent = '이 브라우저는 폴더 선택을 지원하지 않아 다운로드 폴더로 저장됩니다.';
+      return;
+    }
+    if (sourceHandle) {
+      el.textContent = '저장하면 "' + sourceFile.name + '"에 바로 덮어씁니다.';
+    } else if (sourceFile) {
+      el.textContent = '이 이미지는 원본 경로가 없어 저장(Ctrl+S)으로 덮어쓸 수 없습니다. "다른 이름으로 저장"을 쓰세요.';
+    } else {
+      el.textContent = '저장을 누르면 저장할 위치와 이름을 물어봅니다.';
+    }
+  }
+
+  function rememberSource(file, handle) {
+    sourceFile = file || null;
+    sourceHandle = handle || null;
+    if (!handle) writePermGranted = false;
+    updateSaveHint();
+
+    if (handle && file) {
+      idbSet('lastFile', {
+        handle: handle,
+        name: file.name,
+        size: file.size,
+        lastModified: file.lastModified
+      }).then(function () { updateSaveHint(); });
+      return;
+    }
+
+    if (!file) {
+      idbDelete('lastFile');
+      return;
+    }
+
+    idbGet('lastFile').then(function (rec) {
+      if (!rec || !rec.handle || sourceHandle) return null;
+      if (rec.name !== file.name || rec.size !== file.size || rec.lastModified !== file.lastModified) return null;
+      if (typeof rec.handle.queryPermission !== 'function') return rec.handle;
+      return rec.handle.queryPermission({ mode: 'readwrite' }).then(function (p) {
+        return p === 'denied' ? null : rec.handle;
+      }).catch(function () { return null; });
+    }).then(function (h) {
+      if (!h || sourceHandle || !sourceFile) return;
+      sourceHandle = h;
+      updateSaveHint();
+    }).catch(function () {});
+  }
+
+  function currentSaveName() {
+    if (sourceFile && saveAsSupported) {
+      return sourceFile.name.replace(/\.[^.]+$/, '');
+    }
+    return (exportName.value.trim() || 'edit').replace(/\.(png|jpe?g|webp)$/i, '');
+  }
+
+  function renderBlob(format, q, cb) {
     recompose();
-    var format = formatSel.value;
-    var q = parseInt(quality.value, 10) / 100;
     var src = doc;
     if (format !== 'image/png') {
       var c = document.createElement('canvas');
@@ -2914,18 +3073,223 @@
       x.drawImage(doc, 0, 0);
       src = c;
     }
-    src.toBlob(function (blob) {
+    src.toBlob(cb, format, q);
+  }
+
+  function writeToHandle(handle, blob) {
+    return handle.createWritable().then(function (w) {
+      return w.write(blob).then(function () { return w.close(); });
+    }).then(function () {
+      return handle.getFile();
+    });
+  }
+
+  function ensureWritePermission(handle) {
+    if (!handle) return Promise.resolve(false);
+    if (typeof handle.requestPermission === 'function') {
+      return handle.requestPermission({ mode: 'readwrite' }).then(function (p) {
+        return p === 'granted';
+      }).catch(function () {
+        return false;
+      });
+    }
+    if (typeof handle.queryPermission !== 'function') return Promise.resolve(true);
+    return handle.queryPermission({ mode: 'readwrite' }).then(function (p) {
+      return p === 'granted';
+    }).catch(function () {
+      return false;
+    });
+  }
+
+  function askSaveTarget(suggestedName, format, ext) {
+    return window.showSaveFilePicker({
+      suggestedName: suggestedName,
+      types: pickerTypes(format, ext)
+    });
+  }
+
+  function reportSaveError(err) {
+    var msg = (err && (err.name || err.message)) ? (err.name || err.message) : '알 수 없는 오류';
+    setStatus('저장 실패: ' + msg, true);
+    var el = document.getElementById('saveHint');
+    if (el) {
+      el.textContent = '덮어쓰지 못했습니다(' + msg + '). "다른 이름으로 저장"으로 위치를 다시 지정해 주세요.';
+      el.style.color = '#ff8a8a';
+      clearTimeout(reportSaveError.t);
+      reportSaveError.t = setTimeout(function () {
+        el.style.color = '';
+        updateSaveHint();
+      }, 6000);
+    }
+  }
+
+  function saveBlobToDisk(blob, name, ext, handle) {
+    return writeToHandle(handle, blob).then(function (f) {
+      rememberSource(f, handle);
+      exportName.value = f.name.replace(/\.[^.]+$/, '');
+      setStatus('저장 완료: ' + f.name);
+      return true;
+    });
+  }
+
+  function fallbackDownload(blob, fileName) {
+    var a = document.createElement('a');
+    var url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function renderBlobPromise(format, q) {
+    return new Promise(function (resolve) {
+      renderBlob(format, q, function (blob) { resolve(blob); });
+    });
+  }
+
+  function saveAs() {
+    if (!hasImage) return;
+    var format = formatSel.value;
+    var ext = mimeToExt(format);
+    var q = parseInt(quality.value, 10) / 100;
+    var base = currentSaveName();
+
+    if (!saveAsSupported) {
+      renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) { alert('저장에 실패했습니다.'); return; }
+        var typed = prompt('저장할 파일 이름을 입력하세요. (이 브라우저는 폴더 선택을 지원하지 않습니다)', base);
+        if (typed === null) return;
+        typed = typed.trim().replace(/\.(png|jpe?g|webp)$/i, '');
+        if (!typed) return;
+        exportName.value = typed;
+        fallbackDownload(blob, typed + '.' + ext);
+        setStatus('다운로드 폴더에 저장: ' + typed + '.' + ext);
+      });
+      return;
+    }
+
+    var handlePromise;
+    try {
+      handlePromise = askSaveTarget(base + '.' + ext, format, ext);
+    } catch (err) {
+      reportSaveError(err);
+      return;
+    }
+
+    handlePromise.then(function (handle) {
+      return renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) throw new Error('blob-failed');
+        return saveBlobToDisk(blob, base, ext, handle);
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
+      reportSaveError(err);
+    });
+  }
+
+  function save() {
+    if (!hasImage) return;
+    var format = formatSel.value;
+    var q = parseInt(quality.value, 10) / 100;
+
+    // No handle (e.g. pasted image): Save never opens a picker.
+    if (!sourceHandle) {
+      setStatus('원본 경로 없음', true);
+      var el = document.getElementById('saveHint');
+      if (el) {
+        el.textContent = '이 이미지는 원본 파일 경로가 없어 덮어쓸 수 없습니다. "다른 이름으로 저장"을 사용해 주세요.';
+        el.style.color = '#ff8a8a';
+        clearTimeout(save._t);
+        save._t = setTimeout(function () { updateSaveHint(); }, 6000);
+      }
+      return;
+    }
+
+    var handle = sourceHandle;
+
+    // Call permission request first, synchronously in the click gesture.
+    var permPromise = ensureWritePermission(handle);
+
+    function writeOnce() {
+      var writable = null;
+      return Promise.resolve()
+        .then(function () { return handle.createWritable(); })
+        .then(function (w) {
+          writable = w;
+          return renderBlobPromise(format, q);
+        })
+        .then(function (blob) {
+          if (!blob) throw new Error('blob-failed');
+          return writable.write(blob);
+        })
+        .then(function () { return writable.close(); })
+        .then(function () { return handle.getFile(); })
+        .catch(function (err) {
+          try { if (writable && writable.abort) writable.abort(); } catch (e) {}
+          throw err;
+        });
+    }
+
+    permPromise.then(function (granted) {
+      if (!granted) {
+        setStatus('쓰기 권한이 필요합니다', true);
+        var hint = document.getElementById('saveHint');
+        if (hint) {
+          hint.textContent = '브라우저가 이 파일 쓰기를 막았습니다. 주소창의 파일 권한을 허용해 주세요.';
+          hint.style.color = '#ff8a8a';
+        }
+        throw new Error('permission-denied');
+      }
+      return writeOnce();
+    }).then(function (f) {
+      rememberSource(f, handle);
+      exportName.value = f.name.replace(/\.[^.]+$/, '');
+      setStatus('저장 완료: ' + f.name);
+    }).catch(function (err) {
+      if (err && err.message === 'permission-denied') return;
+      reportSaveError(err);
+    });
+  }
+
+  function saveViaPickerFlow(base, format, ext, q) {
+    var handlePromise;
+    try {
+      handlePromise = askSaveTarget(base + '.' + ext, format, ext);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    return handlePromise.then(function (handle) {
+      return renderBlobPromise(format, q).then(function (blob) {
+        if (!blob) throw new Error('blob-failed');
+        return saveBlobToDisk(blob, base, ext, handle);
+      });
+    });
+  }
+
+  function setStatus(msg, isError) {
+    var el = document.getElementById('saveStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.toggle('error', !!isError);
+    el.classList.add('show');
+    clearTimeout(setStatus.t);
+    setStatus.t = setTimeout(function () {
+      el.classList.remove('show');
+    }, 2600);
+  }
+
+  function download() {
+    if (!hasImage) return;
+    var format = formatSel.value;
+    var q = parseInt(quality.value, 10) / 100;
+    var ext = mimeToExt(format);
+    renderBlob(format, q, function (blob) {
       if (!blob) { alert('저장에 실패했습니다.'); return; }
-      var ext = format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
-      var a = document.createElement('a');
-      var url = URL.createObjectURL(blob);
-      a.href = url;
-      a.download = (exportName.value.trim() || 'edit') + '.' + ext;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-    }, format, q);
+      fallbackDownload(blob, (exportName.value.trim() || 'edit') + '.' + ext);
+      setStatus('다운로드: ' + ((exportName.value.trim() || 'edit') + '.' + ext));
+    });
   }
 
   view.addEventListener('pointerdown', function (e) {
@@ -3264,12 +3628,42 @@
     });
   });
 
-  document.getElementById('openBtn').addEventListener('click', function () { fileInput.click(); });
-  document.getElementById('emptyOpen').addEventListener('click', function () { fileInput.click(); });
+  document.getElementById('openBtn').addEventListener('click', openViaPicker);
+  document.getElementById('emptyOpen').addEventListener('click', openViaPicker);
+
+  function openViaPicker() {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      fileInput.click();
+      return;
+    }
+    window.showOpenFilePicker({
+      multiple: false,
+      types: [{
+        description: '이미지',
+        accept: {
+          'image/png': ['.png'],
+          'image/jpeg': ['.jpg', '.jpeg', '.jfif'],
+          'image/webp': ['.webp'],
+          'image/gif': ['.gif'],
+          'image/bmp': ['.bmp'],
+          'image/avif': ['.avif']
+        }
+      }]
+    }).then(function (handles) {
+      var handle = handles && handles[0];
+      if (!handle) return;
+      return handle.getFile().then(function (f) {
+        openIncoming(f, handle);
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
+      fileInput.click();
+    });
+  }
 
   fileInput.addEventListener('change', function () {
     var f = fileInput.files && fileInput.files[0];
-    if (f) handleImageFile(f);
+    if (f) openIncoming(f, null);
     fileInput.value = '';
   });
 
@@ -3288,8 +3682,24 @@
   stage.addEventListener('drop', function (e) {
     e.preventDefault();
     stage.classList.remove('dragover');
+    var items = e.dataTransfer && e.dataTransfer.items;
+    if (items && items.length && typeof items[0].getAsFileSystemHandle === 'function') {
+      items[0].getAsFileSystemHandle().then(function (handle) {
+        if (handle && handle.kind === 'file') {
+          return handle.getFile().then(function (f) {
+            openIncoming(f, handle);
+          });
+        }
+        var f = items[0].getAsFile();
+        if (f) openIncoming(f, null);
+      }).catch(function () {
+        var f = items[0].getAsFile();
+        if (f) openIncoming(f, null);
+      });
+      return;
+    }
     var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) handleImageFile(f);
+    if (f) openIncoming(f, null);
   });
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
@@ -3299,7 +3709,7 @@
     for (var i = 0; i < items.length; i++) {
       if (items[i].type && items[i].type.indexOf('image/') === 0) {
         var f = items[i].getAsFile();
-        if (f) { handleImageFile(f); break; }
+        if (f) { openIncoming(f, null); break; }
       }
     }
   });
@@ -3622,12 +4032,12 @@
   });
 
   formatSel.addEventListener('change', function () {
-    qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+    syncFormatUI();
   });
   quality.addEventListener('input', function () {
     qualityVal.textContent = quality.value;
   });
-  document.getElementById('saveBtn').addEventListener('click', download);
+  document.getElementById('saveBtn').addEventListener('click', save);
   document.getElementById('downloadBtn').addEventListener('click', download);
   document.getElementById('saveAsBtn').addEventListener('click', saveAs);
   document.getElementById('saveAsTop').addEventListener('click', saveAs);
@@ -3660,7 +4070,7 @@
     }
     if (mod && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      download();
+      save();
       return;
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey) {
@@ -3735,7 +4145,8 @@
   updateNudgeUI();
   syncFilterUI();
   syncMosaicStyleUI();
-  qualityRow.style.display = formatSel.value === 'image/png' ? 'none' : 'flex';
+  syncFormatUI();
+  updateSaveHint();
   resizeView();
 
   if (document.fonts && document.fonts.load) {
