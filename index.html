@@ -342,12 +342,12 @@
       <div class="row">
         <label>방식</label>
         <select id="mosaicStyle">
-          <option value="line">얇은 검은 선</option>
           <option value="pixel">픽셀 모자이크</option>
+          <option value="line">얇은 검은 선</option>
         </select>
       </div>
       <div id="pixelOpts" style="display:none">
-        <div class="row"><label>블록 크기</label><input id="mosaicBlock" type="range" min="4" max="48" value="12"><span class="val" id="mosaicBlockVal">12</span></div>
+        <div class="row"><label>블록 크기</label><input id="mosaicBlock" type="range" min="2" max="48" value="5"><span class="val" id="mosaicBlockVal">5</span></div>
       </div>
       <div id="lineOpts">
         <div class="row"><label>선 두께</label><input id="lineWidth" type="range" min="1" max="8" step="0.5" value="2"><span class="val" id="lineWidthVal">2</span></div>
@@ -657,7 +657,7 @@
   var pendingLasso = null;
   var lassoSnapOn = true;
   var edgeCache = null;
-  var mosaicOpt = { block: 12, style: 'line', lineWidth: 2, lineGap: 5, angle: -45, color: '#000000', outline: false };
+  var mosaicOpt = { block: 5, style: 'pixel', lineWidth: 2, lineGap: 5, angle: -45, color: '#000000', outline: false };
   var barOpt = { color: '#000000', opacity: 1 };
 
   var textContent = document.getElementById('textContent');
@@ -934,7 +934,7 @@
     var y2 = Math.min(ctx.canvas.height, Math.ceil(rect.y + rect.h));
     var w = x2 - x, h = y2 - y;
     if (w < 1 || h < 1) return;
-    var bs = Math.max(2, Math.round(block || 12));
+    var bs = Math.max(2, Math.round(block || 5));
     var tw = Math.max(1, Math.round(w / bs));
     var th = Math.max(1, Math.round(h / bs));
     var tmp = document.createElement('canvas');
@@ -1027,7 +1027,7 @@
     tracePolygon(ctx, pts);
     ctx.clip();
     if (o.style === 'pixel') {
-      var bs = Math.max(2, Math.round(o.block || 12));
+      var bs = Math.max(2, Math.round(o.block || 5));
       var tw = Math.max(1, Math.round(b.w / bs));
       var th = Math.max(1, Math.round(b.h / bs));
       var tmp = document.createElement('canvas');
@@ -3819,7 +3819,7 @@
     if (tool === 'mosaic' || tool === 'lasso') scheduleRender();
   });
   mosaicBlock.addEventListener('input', function () {
-    mosaicOpt.block = parseInt(mosaicBlock.value, 10) || 12;
+    mosaicOpt.block = parseInt(mosaicBlock.value, 10) || 5;
     mosaicBlockVal.textContent = mosaicOpt.block;
     liveUpdateCensor(function (ob) {
       if (ob.style === 'pixel') ob.block = mosaicOpt.block;
